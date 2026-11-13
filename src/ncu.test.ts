@@ -53,8 +53,8 @@ describe('ncu option translation', () => {
   });
 
   it('rejects unsupported ncu options with a reason', () => {
-    expect(() => normalizeNcuOptions({ peer: true })).toThrow(/--peer is not supported: depseek warns/);
-    expect(() => normalizeNcuOptions({ global: true })).toThrow(/global/);
+    expect(() => normalizeNcuOptions({ stdin: true })).toThrow(/--stdin is not supported: depseek reads/);
+    expect(() => normalizeNcuOptions({ interactiveSelect: 'some' })).toThrow(/auto, none, patch, minor or all/);
     expect(() => normalizeNcuOptions({ format: 'time,caret' })).toThrow(/don't mix/);
     expect(() => normalizeNcuOptions({ packageManager: 'deno' })).toThrow(/not supported/);
   });

@@ -1,4 +1,5 @@
 import { relative } from 'node:path';
+import { isTool } from './project.js';
 import type { Project } from './project.js';
 import type { BrokenFile, ScanResult } from './scan.js';
 import type { Painter } from './util/color.js';
@@ -50,7 +51,7 @@ function describe(p: Project, paint: Painter['paint'], details: boolean): string
   else if (p.workspaceRoot) tags.push('workspace');
   if (p.private) tags.push('private');
   if (p.lock) tags.push(p.lock.name);
-  const count = p.deps.filter((d) => d.kind !== 'overrides' && d.kind !== 'packageManager').length;
+  const count = p.deps.filter((d) => d.kind !== 'overrides' && !isTool(d.kind)).length;
   bits.push(paint('dim', `${count} dep${count === 1 ? '' : 's'}`));
   if (tags.length) bits.push(paint('hint', `[${tags.join(', ')}]`));
   return bits.join('  ');
@@ -133,7 +134,7 @@ export function treeSummary(result: ScanResult): {
   for (const p of ps) {
     if (p.lock) locks[p.lock.name] = (locks[p.lock.name] ?? 0) + 1;
     for (const d of p.deps) {
-      if (d.kind === 'overrides' || d.kind === 'packageManager') continue;
+      if (d.kind === 'overrides' || isTool(d.kind)) continue;
       if (d.internal) {
         internal++;
         continue;

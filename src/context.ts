@@ -1,3 +1,4 @@
+import { isTool } from './project.js';
 import type { OptValues } from './args.js';
 import { list } from './args.js';
 import { loadConfig, type Config } from './config.js';
@@ -71,7 +72,7 @@ export async function runScan(ctx: Ctx, roots: string[]): Promise<ScanResult> {
 
 export function scanSummary(ctx: Ctx, result: ScanResult): string {
   const names = new Set<string>();
-  for (const p of result.projects) for (const d of p.deps) if (d.kind !== 'packageManager') names.add(d.name);
+  for (const p of result.projects) for (const d of p.deps) if (!isTool(d.kind)) names.add(d.name);
   return ctx.painter.paint(
     'dim',
     `Scanned ${plural(result.projects.length, 'package.json', 'package.json files')}, ${plural(names.size, 'unique dependency', 'unique dependencies')}`,

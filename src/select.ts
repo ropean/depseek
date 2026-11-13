@@ -11,6 +11,9 @@ export interface Selection {
   reject?: (name: string) => boolean;
   project?: (p: Project) => boolean;
   levels?: Set<Level>;
+  /** ncu --filterVersion / --rejectVersion: match the version string as written. */
+  filterVersion?: (raw: string) => boolean;
+  rejectVersion?: (raw: string) => boolean;
   /** name → reason, from config "ignore". */
   ignored: (name: string) => string | undefined;
 }
@@ -28,6 +31,7 @@ const KIND_ALIASES: Record<string, DepKind> = {
   resolutions: 'overrides',
   packageManager: 'packageManager',
   pm: 'packageManager',
+  devEngines: 'devEngines',
 };
 
 export function parseKinds(input: string[] | undefined): Set<DepKind> {
@@ -60,6 +64,12 @@ export function projectMatcher(patterns: string[] | undefined): ((p: Project) =>
   return (p) => byPath(p.relDir) || byPath(p.rel) || (p.name !== undefined && byName(p.name));
 }
 
+/** Version lists are comma- or space-delimited ("^1.0.0 ~2.0.0"); a /regex/ stays whole. */
+function splitVersions(v: unknown): string[] | undefined {
+  const l = list(v);
+  return l?.flatMap((x) => (/^\/.*\/$/.test(x) ? [x] : x.split(/\s+/))).filter(Boolean);
+}
+
 /** ncu --no-root: leave workspace roots out. */
 function withoutRoot(m: ((p: Project) => boolean) | undefined, noRoot: boolean): ((p: Project) => boolean) | undefined {
   if (!noRoot) return m;
@@ -76,6 +86,8 @@ export function buildSelection(opts: OptValues, config: Config): Selection {
     reject: nameMatcher(list(opts.reject) ?? cfgList(config.reject)),
     project: withoutRoot(projectMatcher(list(opts.project) ?? cfgList(config.project)), Boolean(opts.noRoot)),
     levels: parseLevels(list(opts.level) ?? cfgList(config.level)),
+    filterVersion: nameMatcher(splitVersions(opts.filterVersion)),
+    rejectVersion: nameMatcher(splitVersions(opts.rejectVersion)),
     ignored: (name) => ignoreMatchers.find((i) => i.m(name))?.reason,
   };
 }
@@ -91,6 +103,8 @@ export function selectEntries(projects: Project[], sel: Selection, opts: { names
       if (opts.names && !opts.names.has(d.name)) continue;
       if (sel.filter && !sel.filter(d.name)) continue;
       if (sel.reject?.(d.name)) continue;
+      if (sel.filterVersion && !sel.filterVersion(d.raw)) continue;
+      if (sel.rejectVersion?.(d.raw)) continue;
       out.push(d);
     }
   }

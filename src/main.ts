@@ -2,6 +2,7 @@ import pkg from '../package.json' with { type: 'json' };
 import { relative, resolve } from 'node:path';
 import { ArgError, list, parseArgv, type OptSpec } from './args.js';
 import { checkCommand } from './commands/check.js';
+import { globalCommand } from './commands/global.js';
 import { conflictsCommand } from './commands/conflicts.js';
 import { doctorCommand } from './commands/doctor.js';
 import { formatCommand } from './commands/format.js';
@@ -36,6 +37,12 @@ const OPTIONS: Record<string, OptSpec> = {
   level: { type: 'string', multiple: true },
   cooldown: { type: 'string', short: 'c' },
   minimal: { type: 'boolean', short: 'm' },
+  peer: { type: 'boolean' },
+  'engines-node': { type: 'boolean' },
+  pre: { type: 'string' },
+  'filter-version': { type: 'string', multiple: true },
+  'reject-version': { type: 'string', multiple: true },
+  'owner-changed': { type: 'boolean' },
   'pin-wildcards': { type: 'boolean' },
   'group-by': { type: 'string' },
   'error-on': { type: 'string', multiple: true },
@@ -53,6 +60,7 @@ const OPTIONS: Record<string, OptSpec> = {
   'allow-major': { type: 'boolean' },
   // writing
   interactive: { type: 'boolean', short: 'i' },
+  'interactive-select': { type: 'string' },
   'dry-run': { type: 'boolean', short: 'n' },
   diff: { type: 'boolean' },
   install: { type: 'string' },
@@ -117,16 +125,21 @@ Usage
 Checking
   -t, --target <t>                    latest | minor | patch | semver | greatest | newest | @<tag>
   -f, --filter <p> / -x, --reject <p> package names: list, globs (@types/*) or /regex/
-  --dep <types>                       prod,dev,peer,optional,overrides,packageManager
+  --dep <types>                       prod,dev,peer,optional,overrides,packageManager,devEngines
                                       (default prod,dev,optional,packageManager)
   --project <glob>                    only package.json files whose path or name matches
   --level <levels>                    patch,minor,major,prerelease
   -c, --cooldown <period>             ignore versions newer than 7 (days), 7d, 12h or 30m
   -m, --minimal                       skip versions the current range already allows
+  --peer                              only versions whose peer dependencies fit the project (both ways)
+  --engines-node                      only versions whose engines.node covers the project's engines.node
+  --pre <0|1>                         include prereleases for latest / minor / patch targets
+  --filter-version / --reject-version only / never dependencies whose written version matches
+  --owner-changed                     warn when a different npm account published the target version
   --pin-wildcards                     also resolve "*", "x" and "latest" to a concrete version
   --group-by <g>                      package | project | level (default package)
   --audit                             check current versions against OSV vulnerability data
-  --error-on <cond>                   exit 1 on outdated | major | deprecated | peer | conflicts | vulnerable
+  --error-on <cond>                   exit 1 on outdated | major | deprecated | peer | conflicts | vulnerable | owner
   -e, --error-level <n>               1: exit 0 unless errors · 2: exit 1 when anything is outdated
   -r, --registry <url>                registry to query (default: from .npmrc / bunfig.toml)
   --concurrency <n>                   parallel registry requests (default 16)
@@ -141,6 +154,7 @@ Conflicts
 Writing
   -u, --upgrade                       write changes to package.json
   -i, --interactive                   pick updates in a full-screen list
+  --interactive-select <s>            preselect auto | none | patch | minor | all (default auto)
   -n, --dry-run                       only print the diff
   --format <f>                        exact | tilde | caret | preserve | gte | x-range (default exact)
   --remove-range                      same as --format exact
@@ -156,6 +170,7 @@ Scanning (always recursive; ncu's --deep / -w / --workspaces are accepted)
   --no-recursive / --depth <n>        only the given directories / limit the depth
   --workspace <name> / --no-root      only these workspaces / leave out the workspace root
   --package-file <glob>               ncu-style file selection, e.g. 'apps/*/package.json'
+  -g, --global                        global packages of -p npm (default) | pnpm | yarn | bun
   --include <glob> / --exclude <glob> limit scan scope (repeatable)
   --no-gitignore                      don't honour .gitignore files
   --no-default-ignore                 also scan node_modules-free defaults like fixtures/, examples/
@@ -254,6 +269,7 @@ export async function main(argv: string[]): Promise<number> {
       return initCommand(ctx);
     case 'check':
     default:
+      if (opts.global) return globalCommand(ctx);
       if (opts.listFiles) return treeCommand(ctx, roots, Boolean(opts.tree));
       if (opts.tree) return treeCommand(ctx, roots, true);
       if (opts.upgrade || opts.interactive) return upCommand(ctx, roots, true);

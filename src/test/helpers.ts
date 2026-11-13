@@ -19,6 +19,7 @@ export interface FakeVersion {
   peerDependencies?: Record<string, string>;
   engines?: Record<string, string>;
   license?: string;
+  _npmUser?: { name: string };
 }
 
 /** Build a packument: versions → metadata (time defaults to long ago). */

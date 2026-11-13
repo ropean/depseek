@@ -2,6 +2,7 @@ import semver from 'semver';
 import { audit, type Vulnerability } from './audit.js';
 import type { Config } from './config.js';
 import { resolvedInstalled } from './lock.js';
+import { isTool } from './project.js';
 import type { DepEntry, DepKind, Project } from './project.js';
 import { RegistryError, type PackageMeta, type RegistryClient } from './registry.js';
 import type { Selection } from './select.js';
@@ -11,7 +12,7 @@ import { candidates, diffLevel, pickTarget, resolveRange, type Level } from './v
 
 /** `fixes` is informational: the upgrade resolves a known vulnerability. */
 export type WarningType =
-  'peer' | 'engines' | 'deprecated' | 'license' | 'vulnerable' | 'fixes' | 'group' | 'types' | 'override';
+  'peer' | 'engines' | 'deprecated' | 'license' | 'vulnerable' | 'fixes' | 'group' | 'types' | 'override' | 'owner';
 
 export interface Warning {
   type: WarningType;
@@ -112,6 +113,14 @@ export interface AnalyzeOptions {
   builtinGroups?: boolean;
   /** ncu --minimal: skip targets the current range already satisfies. */
   minimal?: boolean;
+  /** ncu --peer: only versions whose peer requirements (both ways) fit what the project has. */
+  peer?: boolean;
+  /** ncu --enginesNode: only versions whose engines.node covers the project's engines.node. */
+  enginesNode?: boolean;
+  /** ncu --pre: prereleases count for latest / minor / patch targets. */
+  pre?: boolean;
+  /** Warn when the target was published by a different npm account than the current version. */
+  ownerChanged?: boolean;
   runtime?: Config['runtime'];
   licenseCheck?: boolean;
   /** `up react@19 vite` — name → range ('' = use the target strategy). */
@@ -132,6 +141,7 @@ export function resolveFormat(
   if (entry.kind === 'packageManager') return 'exact'; // "pnpm@^10" is not a valid packageManager
   if (target === 'semver') return 'preserve';
   if (cli) return cli;
+  if (entry.kind === 'devEngines') return 'preserve'; // usually a range such as ">=22"; keep its style
   if (typeof cfg === 'string') return cfg;
   if (cfg) {
     const byKind = cfg[entry.kind as DepKind];
@@ -242,11 +252,52 @@ export async function analyze(projects: Project[], entries: DepEntry[], opts: An
     if (!rules.length) return undefined;
     return (v) => rules.some((r) => !r.range || semver.satisfies(v, r.range, { includePrerelease: true }));
   };
-  const candOpts = (name: string) => ({
+  // ncu --peer / --enginesNode: drop candidates that don't fit the project instead of only warning.
+  const installedByProject = new Map<Project, Map<string, string>>();
+  let planned = new Map<Project, Map<string, string>>();
+  // Round 0 plans without the peer filter; later rounds check every candidate against that plan,
+  // so packages that only fit each other's new versions (plugin 2 ↔ host 2) can move together.
+  let peerActive = false;
+  const installedIn = (p: Project): Map<string, string> => {
+    let m = installedByProject.get(p);
+    if (!m) {
+      m = new Map(planned.get(p));
+      for (const d of p.deps) {
+        if (d.kind === 'peer' || d.kind === 'overrides' || isTool(d.kind)) continue;
+        if (m.has(d.name)) continue; // planned upgrade wins
+        const v = currentResolved(d, metas.get(registryName(d)));
+        if (v && semver.valid(v)) m.set(d.name, v);
+      }
+      installedByProject.set(p, m);
+    }
+    return m;
+  };
+  const acceptFor = (e: DepEntry | undefined): ((v: string) => boolean) | undefined => {
+    if (!e || (!opts.peer && !opts.enginesNode)) return undefined;
+    const meta = metas.get(registryName(e));
+    if (!meta) return undefined;
+    const checks: ((v: string) => boolean)[] = [];
+    if (opts.peer && peerActive && e.kind !== 'peer') {
+      const have = installedIn(e.project);
+      checks.push((v) => peersSatisfied(e.name, v, meta.versions[v], have, metas));
+    }
+    const projNode = (e.project.json.engines as Record<string, string> | undefined)?.node;
+    if (opts.enginesNode && (projNode ? semver.validRange(projNode) : opts.runtime?.node)) {
+      checks.push((v) => {
+        const need = meta.versions[v]?.engines?.node;
+        if (!need || !semver.validRange(need)) return true;
+        return projNode ? semver.subset(projNode, need) : semver.satisfies(opts.runtime!.node!, need);
+      });
+    }
+    return checks.length ? (v) => checks.every((c) => c(v)) : undefined;
+  };
+  const candOpts = (name: string, entry?: DepEntry) => ({
     cooldownDays: opts.cooldown,
     exclude: excludeFor(name),
     pin: pinFor(name),
     now: opts.now,
+    accept: acceptFor(entry),
+    pre: opts.pre,
   });
 
   const updates: Update[] = [];
@@ -278,35 +329,62 @@ export async function analyze(projects: Project[], entries: DepEntry[], opts: An
     };
   };
 
-  for (const e of checkable) {
-    const meta = metas.get(registryName(e));
-    if (!meta) continue;
-    if (companions.has(e.name)) continue; // only moved by applyGroups
-    const explicitRange = opts.explicit?.get(e.name);
-    if (explicitRange) {
-      const v = resolveRange(meta, explicitRange);
-      if (!v) {
-        errors.set(e.name, `no version matching "${explicitRange}" in registry`);
+  // With --peer the check runs against the planned versions, so it is repeated until the plan is
+  // stable (upgrading @types/react makes the new @types/react-dom acceptable, and so on).
+  const rounds = opts.peer ? 8 : 1;
+  for (let round = 0; round < rounds; round++) {
+    updates.length = 0;
+    installedByProject.clear();
+    peerActive = round > 0;
+    for (const e of checkable) {
+      const meta = metas.get(registryName(e));
+      if (!meta) continue;
+      if (companions.has(e.name)) continue; // only moved by applyGroups
+      const explicitRange = opts.explicit?.get(e.name);
+      if (explicitRange) {
+        const v = resolveRange(meta, explicitRange);
+        if (!v) {
+          errors.set(e.name, `no version matching "${explicitRange}" in registry`);
+          continue;
+        }
+        const u = makeUpdate(e, meta, v, { explicit: true });
+        if (u) updates.push(u);
         continue;
       }
-      const u = makeUpdate(e, meta, v, { explicit: true });
+      let target: string | undefined;
+      if (e.spec.kind === 'wildcard') {
+        target = pickTarget(
+          meta,
+          undefined,
+          strategy === 'semver' ? 'latest' : strategy,
+          undefined,
+          candOpts(e.name, e),
+        );
+      } else {
+        target = pickTarget(meta, e.spec.base, strategy, e.spec.range, candOpts(e.name, e));
+      }
+      if (!target) continue;
+      if (opts.minimal && e.spec.range && semver.satisfies(target, e.spec.range)) continue;
+      const u = makeUpdate(e, meta, target);
       if (u) updates.push(u);
-      continue;
     }
-    let target: string | undefined;
-    if (e.spec.kind === 'wildcard') {
-      target = pickTarget(meta, undefined, strategy === 'semver' ? 'latest' : strategy, undefined, candOpts(e.name));
-    } else {
-      target = pickTarget(meta, e.spec.base, strategy, e.spec.range, candOpts(e.name));
-    }
-    if (!target) continue;
-    if (opts.minimal && e.spec.range && semver.satisfies(target, e.spec.range)) continue;
-    const u = makeUpdate(e, meta, target);
-    if (u) updates.push(u);
-  }
 
-  applyGroups(updates, checkable, metas, opts, makeUpdate);
-  applyTypesFollow(projects, updates, metas, opts, candOpts);
+    applyGroups(updates, checkable, metas, opts, makeUpdate);
+    applyTypesFollow(projects, updates, metas, opts, candOpts);
+    if (!opts.peer) break;
+    const next = new Map<Project, Map<string, string>>();
+    for (const u of updates) {
+      if (!next.has(u.entry.project)) next.set(u.entry.project, new Map());
+      next.get(u.entry.project)!.set(u.name, u.target);
+    }
+    const key = (m: Map<Project, Map<string, string>>): string =>
+      [...m]
+        .map(([p, v]) => `${p.file}:${[...v].sort().join(',')}`)
+        .sort()
+        .join('|');
+    if (round > 0 && key(next) === key(planned)) break;
+    planned = next;
+  }
 
   // Level filter.
   let filteredByLevel = 0;
@@ -359,7 +437,7 @@ function applyTypesFollow(
   updates: Update[],
   metas: Map<string, PackageMeta>,
   opts: AnalyzeOptions,
-  candOpts: (name: string) => Parameters<typeof candidates>[1],
+  candOpts: (name: string, entry?: DepEntry) => Parameters<typeof candidates>[1],
 ): void {
   void projects;
   for (let i = updates.length - 1; i >= 0; i--) {
@@ -394,7 +472,7 @@ function applyTypesFollow(
     )
       continue;
     const meta = metas.get(u.name)!;
-    const pool = candidates(meta, candOpts(u.name)).filter(
+    const pool = candidates(meta, candOpts(u.name, u.entry)).filter(
       (v) => !semver.prerelease(v) && semver.major(v) === bv.major,
     );
     const sameMinor = pool.filter((v) => semver.minor(v) === bv.minor);
@@ -418,6 +496,32 @@ function applyTypesFollow(
     };
     if (updates[i]!.newRaw === u.entry.raw) updates.splice(i, 1);
   }
+}
+
+/**
+ * `name@version` works with the project's installed versions: its own peers are satisfied, and
+ * installed packages that list `name` as a peer accept this version.
+ */
+function peersSatisfied(
+  name: string,
+  version: string,
+  vm: PackageMeta['versions'][string] | undefined,
+  have: Map<string, string>,
+  metas: Map<string, PackageMeta>,
+): boolean {
+  for (const [peer, range] of Object.entries(vm?.peerDependencies ?? {})) {
+    const v = have.get(peer);
+    if (!v || vm?.peerDependenciesMeta?.[peer]?.optional || !semver.validRange(range)) continue;
+    if (!semver.satisfies(v, range, { includePrerelease: true })) return false;
+  }
+  for (const [dep, v] of have) {
+    if (dep === name) continue;
+    const dm = metas.get(dep)?.versions[v];
+    const range = dm?.peerDependencies?.[name];
+    if (!range || dm?.peerDependenciesMeta?.[name]?.optional || !semver.validRange(range)) continue;
+    if (!semver.satisfies(version, range, { includePrerelease: true })) return false;
+  }
+  return true;
 }
 
 function groupList(opts: AnalyzeOptions): string[][] {
@@ -514,6 +618,22 @@ function runChecks(
     if (bun && eng?.bun && semver.validRange(eng.bun) && !semver.satisfies(bun, eng.bun, { includePrerelease: true })) {
       u.warnings.push({ type: 'engines', message: `requires bun ${eng.bun} (runtime ${bun})` });
     }
+    if (opts.ownerChanged) {
+      const cur = currentResolved(u.entry, meta);
+      const before = cur ? meta.versions[cur]?.publisher : undefined;
+      const after = tm.publisher;
+      if (before && after && before !== after) {
+        const seen =
+          cur &&
+          Object.entries(meta.versions).some(
+            ([v, m]) => m.publisher === after && semver.valid(v) && semver.lte(v, cur),
+          );
+        u.warnings.push({
+          type: 'owner',
+          message: `${u.target} published by ${after}, ${cur} by ${before}${seen ? '' : ' — first release by this account'}`,
+        });
+      }
+    }
     if (opts.licenseCheck !== false) {
       const cur = resolvedInstalled(u.entry) ?? u.entry.spec.base;
       const before = cur ? meta.versions[cur]?.license : undefined;
@@ -551,7 +671,7 @@ function runChecks(
     // Versions after the upgrade, for every dependency of the project we know about.
     const after = new Map<string, string>();
     for (const d of project.deps) {
-      if (d.kind === 'peer' || d.kind === 'overrides' || d.kind === 'packageManager') continue;
+      if (d.kind === 'peer' || d.kind === 'overrides' || isTool(d.kind)) continue;
       const v = currentResolved(d, metas.get(d.name));
       if (v) after.set(d.name, v);
     }
@@ -594,7 +714,7 @@ async function auditEntries(
   fetchFn?: typeof fetch,
 ): Promise<VulnerableUse[]> {
   const uses = entries
-    .filter((e) => e.kind !== 'packageManager')
+    .filter((e) => !isTool(e.kind))
     .map((e) => ({ entry: e, version: currentResolved(e, metas.get(e.name)) }))
     .filter((u): u is { entry: DepEntry; version: string } => Boolean(u.version && semver.valid(u.version)));
   const results = await audit(

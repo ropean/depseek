@@ -24,17 +24,11 @@ export const NCU_DISPLAY_FORMATS: readonly string[] = [
 
 /** ncu options depseek does not implement (yet): a clear message instead of "unknown option". */
 export const NCU_UNSUPPORTED: Record<string, string> = {
-  pre: 'use --target greatest or --target @<tag> to include prereleases',
-  'engines-node': 'depseek warns about engines.node instead of filtering (see the ⚠ engines notes)',
-  peer: 'depseek warns about peer dependencies instead of filtering (see the ⚠ peer notes)',
-  'filter-version': 'not supported yet',
-  'reject-version': 'not supported yet',
-  'interactive-select': 'not supported yet; in -i, p / m / M toggle patch / minor / major',
   'filter-results': 'predicate functions are not supported',
   'group-function': 'predicate functions are not supported',
-  'merge-config': 'not supported yet',
-  stdin: 'not supported; depseek reads package.json files from disk',
-  'package-data': 'not supported; depseek reads package.json files from disk',
+  'merge-config': 'planned',
+  stdin: 'depseek reads package.json files from disk',
+  'package-data': 'depseek reads package.json files from disk',
   'registry-type': 'only npm-compatible registries are supported',
   prefix: 'pass the directory as an argument instead',
 };
@@ -72,9 +66,13 @@ export function normalizeNcuOptions(opts: OptValues): NcuResult {
     if (opts[camel] !== undefined) throw new Error(`ncu option --${camel} is not supported: ${NCU_UNSUPPORTED[key]}`);
   }
 
-  if (opts.global) throw new Error('-g / --global (global packages) is not supported yet');
-
   if (opts.cooldown !== undefined) opts.cooldown = parseCooldown(opts.cooldown);
+  if (opts.pre !== undefined) opts.pre = opts.pre === true || Number(opts.pre) > 0;
+  if (opts.interactiveSelect !== undefined) {
+    const v = String(opts.interactiveSelect);
+    if (!['auto', 'none', 'patch', 'minor', 'all'].includes(v))
+      throw new Error(`--interactiveSelect expects auto, none, patch, minor or all — got "${v}"`);
+  }
 
   // -e 2: exit 1 when anything is outdated.
   if (opts.errorLevel !== undefined) {
@@ -96,7 +94,8 @@ export function normalizeNcuOptions(opts: OptValues): NcuResult {
         throw new Error(`--format: don't mix ncu display values (${display.join(', ')}) with a version style`);
       opts.format = undefined;
       for (const d of display) {
-        if (d === 'lines' || d === 'ownerChanged') warnings.push(`--format ${d} is not supported yet; ignored`);
+        if (d === 'ownerChanged') opts.ownerChanged = true;
+        if (d === 'lines') warnings.push('--format lines is not supported yet; ignored');
         // group / time / repo / dep / installedVersion / cooldown: shown by default (or in -o json).
       }
     }
@@ -136,12 +135,6 @@ export function normalizeNcuOptions(opts: OptValues): NcuResult {
     opts.ncuJson = json;
     opts.output = 'json';
     opts.install ??= 'never';
-  }
-
-  const dep = list(opts.dep);
-  if (dep?.includes('devEngines')) {
-    warnings.push('--dep devEngines is not supported yet; ignored');
-    opts.dep = dep.filter((d) => d !== 'devEngines');
   }
 
   return { command, warnings };

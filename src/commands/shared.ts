@@ -80,6 +80,10 @@ export function analyzeOptions(ctx: Ctx, prep: Prepared, extra: Partial<AnalyzeO
     formatConfig: c.format,
     cooldown: parseCooldown(ctx.opts.cooldown ?? c.cooldown) ?? 0,
     minimal: Boolean(ctx.opts.minimal ?? c.minimal),
+    peer: Boolean(ctx.opts.peer ?? c.peer),
+    enginesNode: Boolean(ctx.opts.enginesNode ?? c.enginesNode),
+    pre: Boolean(ctx.opts.pre ?? c.pre),
+    ownerChanged: Boolean(ctx.opts.ownerChanged ?? c.ownerChanged),
     pinWildcards: Boolean(ctx.opts.pinWildcards),
     pins: c.pin,
     ignoreVersions: c.ignoreVersions,
@@ -108,13 +112,14 @@ export function printSummary(ctx: Ctx, result: ScanResult): void {
   ctx.out();
 }
 
-export type ErrorOn = 'outdated' | 'major' | 'deprecated' | 'peer' | 'conflicts' | 'vulnerable';
-const ERROR_ON: readonly ErrorOn[] = ['outdated', 'major', 'deprecated', 'peer', 'conflicts', 'vulnerable'];
+export type ErrorOn = 'outdated' | 'major' | 'deprecated' | 'peer' | 'conflicts' | 'vulnerable' | 'owner';
+const ERROR_ON: readonly ErrorOn[] = ['outdated', 'major', 'deprecated', 'peer', 'conflicts', 'vulnerable', 'owner'];
 
 export function errorOn(ctx: Ctx): Set<ErrorOn> {
   const l = list(ctx.opts.errorOn) ?? [];
   // --error-on vulnerable implies --audit
   if (l.includes('vulnerable') && ctx.opts.audit === undefined) ctx.opts.audit = true;
+  if (l.includes('owner')) ctx.opts.ownerChanged = true;
   for (const x of l)
     if (!(ERROR_ON as readonly string[]).includes(x))
       throw new Error(`Unknown --error-on "${x}" (expected ${ERROR_ON.join(', ')})`);
@@ -138,6 +143,8 @@ export function analysisFails(conds: Set<ErrorOn>, a: Analysis): string[] {
   )
     why.push('vulnerabilities');
   if (conds.has('vulnerable') && a.auditError) why.push('vulnerability check failed');
+  if (conds.has('owner') && a.updates.some((u) => u.warnings.some((w) => w.type === 'owner')))
+    why.push('publisher changes');
   return why;
 }
 

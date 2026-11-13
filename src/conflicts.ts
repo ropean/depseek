@@ -1,6 +1,7 @@
 import semver from 'semver';
 import type { ConflictProjectGroup } from './config.js';
 import { installedManifest, installedVersion } from './lock.js';
+import { isTool } from './project.js';
 import type { DepEntry, Project } from './project.js';
 import { nameMatcher, pathMatcher } from './util/glob.js';
 
@@ -82,9 +83,7 @@ export function findConflicts(entries: DepEntry[], opts: FindConflictsOptions = 
     const variants = [...byRaw.values()].sort(
       (a, b) => b.entries.length - a.entries.length || (a.base && b.base ? semver.rcompare(a.base, b.base) : 0),
     );
-    const sections = [
-      ...new Set(es.filter((e) => e.kind !== 'overrides' && e.kind !== 'packageManager').map((e) => e.section)),
-    ];
+    const sections = [...new Set(es.filter((e) => e.kind !== 'overrides' && !isTool(e.kind)).map((e) => e.section))];
     let severity: Severity;
     let type: ConflictType;
     if (variants.length > 1) {
@@ -113,7 +112,7 @@ export function findPeerProblems(projects: Project[], entries: DepEntry[]): Peer
   const out: PeerProblem[] = [];
   const seen = new Set<string>();
   for (const e of entries) {
-    if (e.kind === 'peer' || e.kind === 'overrides' || e.kind === 'packageManager' || e.internal) continue;
+    if (e.kind === 'peer' || e.kind === 'overrides' || isTool(e.kind) || e.internal) continue;
     const m = installedManifest(e.project, e.spec.alias ? e.path[e.path.length - 1]! : e.name);
     if (!m?.peerDependencies) continue;
     for (const [peer, range] of Object.entries(m.peerDependencies)) {

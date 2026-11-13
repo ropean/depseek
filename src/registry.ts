@@ -219,6 +219,10 @@ export interface RegistryClientOptions {
   cacheTtl?: number;
   useCache?: boolean;
   fetch?: typeof fetch;
+  /** Retries after the first attempt (default 2, i.e. 3 attempts). */
+  retries?: number;
+  /** Per-request timeout in ms (default 60000). */
+  timeout?: number;
 }
 
 export class RegistryError extends Error {
@@ -288,9 +292,10 @@ export class RegistryClient {
     const doFetch = this.opts.fetch ?? fetch;
     let res: Response | undefined;
     let lastErr: unknown;
-    for (let attempt = 0; attempt < 3; attempt++) {
+    const attempts = Math.max(1, (this.opts.retries ?? 2) + 1);
+    for (let attempt = 0; attempt < attempts; attempt++) {
       try {
-        res = await doFetch(url, { headers, signal: AbortSignal.timeout(60_000) });
+        res = await doFetch(url, { headers, signal: AbortSignal.timeout(this.opts.timeout ?? 60_000) });
         if (res.status < 500 && res.status !== 429) break;
       } catch (e) {
         lastErr = e;

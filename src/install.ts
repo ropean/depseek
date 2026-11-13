@@ -19,14 +19,19 @@ export interface InstallResult {
 }
 
 /** Where to run install for a set of changed projects: one run per lock-file directory. */
-export function installTargets(projects: Project[], defaultPm: PackageManager = 'bun'): InstallTarget[] {
+export function installTargets(
+  projects: Project[],
+  defaultPm: PackageManager = 'bun',
+  /** ncu -p: use this package manager everywhere, whatever the lock file says. */
+  forcePm?: PackageManager,
+): InstallTarget[] {
   const targets = new Map<string, InstallTarget>();
   for (const p of projects) {
     let top = p;
     while (top.workspaceRoot) top = top.workspaceRoot;
     const lock = p.effectiveLock ?? top.lock;
     const dir = lock ? dirname(lock.file) : top.dir;
-    const pm = lock?.pm ?? defaultPm;
+    const pm = forcePm ?? lock?.pm ?? defaultPm;
     const t = targets.get(dir);
     if (t) t.projects.push(p);
     else targets.set(dir, { dir, pm, projects: [p] });

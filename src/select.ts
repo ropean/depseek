@@ -60,6 +60,12 @@ export function projectMatcher(patterns: string[] | undefined): ((p: Project) =>
   return (p) => byPath(p.relDir) || byPath(p.rel) || (p.name !== undefined && byName(p.name));
 }
 
+/** ncu --no-root: leave workspace roots out. */
+function withoutRoot(m: ((p: Project) => boolean) | undefined, noRoot: boolean): ((p: Project) => boolean) | undefined {
+  if (!noRoot) return m;
+  return (p) => !p.workspaces && (!m || m(p));
+}
+
 export function buildSelection(opts: OptValues, config: Config): Selection {
   const ignoreList = (config.ignore ?? []).map((i) => (typeof i === 'string' ? { name: i } : i));
   const ignoreMatchers = ignoreList.map((i) => ({ m: nameMatcher(i.name)!, reason: i.reason ?? 'ignored in config' }));
@@ -68,7 +74,7 @@ export function buildSelection(opts: OptValues, config: Config): Selection {
     kinds: parseKinds(list(opts.dep) ?? cfgList(config.dep)),
     filter: nameMatcher(list(opts.filter) ?? cfgList(config.filter)),
     reject: nameMatcher(list(opts.reject) ?? cfgList(config.reject)),
-    project: projectMatcher(list(opts.project) ?? cfgList(config.project)),
+    project: withoutRoot(projectMatcher(list(opts.project) ?? cfgList(config.project)), Boolean(opts.noRoot)),
     levels: parseLevels(list(opts.level) ?? cfgList(config.level)),
     ignored: (name) => ignoreMatchers.find((i) => i.m(name))?.reason,
   };

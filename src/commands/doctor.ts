@@ -34,7 +34,8 @@ export async function doctorCommand(ctx: Ctx, roots: string[]): Promise<number> 
   }
   const defaultPm = (ctx.config.packageManager as PackageManager | undefined) ?? 'bun';
   const testFor = (p: Project): string =>
-    (ctx.opts.test as string | undefined) ?? `${p.effectiveLock?.pm ?? defaultPm} run test`;
+    (ctx.opts.test as string | undefined) ??
+    `${(ctx.opts.packageManager as PackageManager | undefined) ?? p.effectiveLock?.pm ?? defaultPm} run test`;
   const rel = (d: string): string => toPosix(relative(ctx.cwd, d)) || '.';
 
   const allProjects = [...new Set(a.updates.map((u) => u.entry.project))];
@@ -55,8 +56,18 @@ export async function doctorCommand(ctx: Ctx, roots: string[]): Promise<number> 
     }
     return { ok: true, output: '' };
   };
+  const forcePm = ctx.opts.packageManager as PackageManager | undefined;
+  const customInstall = ctx.opts.doctorInstall as string | undefined;
   const install = async (projects: Project[]): Promise<{ ok: boolean; output: string }> => {
-    const results = await runInstalls(installTargets(projects, defaultPm));
+    const targets = installTargets(projects, defaultPm, forcePm);
+    if (customInstall) {
+      for (const t of targets) {
+        const r = await runShell(customInstall, t.dir);
+        if (r.code !== 0) return { ok: false, output: `${rel(t.dir)}$ ${customInstall}\n${r.output}` };
+      }
+      return { ok: true, output: '' };
+    }
+    const results = await runInstalls(targets);
     const bad = results.find((r) => !r.ok);
     return bad
       ? { ok: false, output: `${rel(bad.target.dir)}$ ${bad.target.pm} install\n${bad.output}` }

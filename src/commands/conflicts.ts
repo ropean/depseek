@@ -14,6 +14,7 @@ import { RegistryError } from '../registry.js';
 import { conflictsToJson, conflictsToMarkdown, renderConflicts } from '../render/conflicts.js';
 import { selectEntries } from '../select.js';
 import { formatSpec } from '../spec.js';
+import { parseCooldown } from '../ncu.js';
 import { nameMatcher } from '../util/glob.js';
 import { plural } from '../util/text.js';
 import { pickTarget, resolveRange } from '../versions.js';
@@ -91,7 +92,7 @@ async function planFix(
           const highest = alignTarget(variantsOf(bucket), 'highest');
           target =
             pickTarget(meta, highest, allowMajor ? 'latest' : 'minor', undefined, {
-              cooldownDays: ctx.config.cooldown,
+              cooldownDays: parseCooldown(ctx.opts.cooldown ?? ctx.config.cooldown),
             }) ?? highest;
         }
       } else {

@@ -14,11 +14,12 @@ import { postWrite } from './post.js';
  * Split `up` positionals into directories and package specs. Paths (./x, /x, ~/x, a/b) and
  * existing directories holding a package.json are directories; everything else is a package.
  */
-export function splitDirsAndPackages(ctx: Ctx, args: string[]): { dirs: string[]; packages: string[] } {
+export function splitDirsAndPackages(ctx: Ctx | string, args: string[]): { dirs: string[]; packages: string[] } {
+  const cwd = typeof ctx === 'string' ? ctx : ctx.cwd;
   const dirs: string[] = [];
   const packages: string[] = [];
   for (const a of args) {
-    const abs = resolve(ctx.cwd, a);
+    const abs = resolve(cwd, a);
     const isDir = existsSync(abs) && statSync(abs).isDirectory();
     const looksLikePath = /^(\.|\/|~|[A-Za-z]:[\\/])/.test(a) || (a.includes('/') && !a.startsWith('@'));
     if (isDir && (looksLikePath || existsSync(join(abs, 'package.json')))) dirs.push(a);

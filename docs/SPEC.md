@@ -12,7 +12,7 @@ Nov 13, 2026 · @Wei Guo
 - **默认安全**：写文件前先显示 diff；支持 `--dry-run`；改之前做备份或要求 git 工作区干净。
 - **保留原格式**：写回时保持原来的缩进、换行符、字段顺序和文件末尾换行，只改版本号字符串。
 - **包管理器无关**：只读写 package.json，install 交给用户选择的包管理器（默认识别 bun）。
-- **对 ncu 用户零学习成本**：常用参数尽量与 ncu 同名（`-u`、`-t`、`-f`、`-x`、`-i`、`--dep`）。
+- **对 ncu 用户零学习成本**：长短参数、JSON 输出、`.ncurc` 配置与 ncu 兼容，`ncu` 换成 `depseek` 即可（见 README「从 ncu 迁移」）。
 
 **与 ncu 的主要区别**
 
@@ -182,10 +182,10 @@ Nov 13, 2026 · @Wei Guo
 所有命令（check / conflicts / up）共用同一套过滤参数。
 
 - **按包名**：`-f, --filter <pattern>` 只处理匹配的包；`-x, --reject <pattern>` 排除。支持通配符（`@types/*`）、逗号分隔和 `/regex/`，与 ncu 一致。
-- **按依赖类型**：`--dep prod,dev,peer,optional,overrides`，默认 `prod,dev,optional`（peer 默认不动，因为它是给使用者的约束）。
+- **按依赖类型**：`--dep prod,dev,peer,optional,overrides,packageManager`，默认 `prod,dev,optional,packageManager`（与 ncu 一致；peer 默认不动，因为它是给使用者的约束）。
 - **按项目**：`--project <glob>` 只处理匹配路径或 `name` 的 package.json。
 - **按级别**：`--level patch,minor` 只显示/更新这些级别，比如日常只自动升 patch。
-- **按发布时间**：`--cooldown <days>` 忽略 N 天内刚发布的版本，避开刚发布就被撤回或被投毒的版本（见补充功能）。
+- **按发布时间**：`-c, --cooldown <period>`（`7`、`7d`、`12h`、`30m`）忽略刚发布的版本，避开刚发布就被撤回或被投毒的版本（见补充功能）。
 
 **交互模式（`-i`）**
 
@@ -249,28 +249,28 @@ Nov 13, 2026 · @Wei Guo
 
 **常用参数**
 
-| 参数                                 | 默认值              | 说明                      |
-| ------------------------------------ | ------------------- | ------------------------- |
-| `-r, --recursive` / `--no-recursive` | 递归                | 是否递归扫描              |
-| `--depth <n>`                        | 不限                | 递归深度                  |
-| `--include` / `--exclude <glob>`     | —                   | 扫描范围                  |
-| `-u, --upgrade`                      | 关                  | 写入文件                  |
-| `-t, --target <t>`                   | `latest`            | 目标版本策略              |
-| `--format <f>`                       | `exact`             | 写入格式                  |
-| `-f, --filter` / `-x, --reject`      | —                   | 按包名过滤                |
-| `--dep <types>`                      | `prod,dev,optional` | 依赖类型                  |
-| `--level <levels>`                   | 全部                | 只处理指定级别            |
-| `-i, --interactive`                  | 关                  | 交互选择                  |
-| `--group-by <g>`                     | `package`           | package / project / level |
-| `--cooldown <days>`                  | 0                   | 冷却期                    |
-| `--install <mode>`                   | `prompt`            | 更新后是否 install        |
-| `--dry-run`                          | 关                  | 只显示 diff               |
-| `--theme <name>`                     | `default`           | 颜色主题                  |
-| `--output <fmt>`                     | `table`             | table / json / markdown   |
-| `--error-on <cond>`                  | —                   | 用于 CI，见下文           |
-| `--concurrency <n>`                  | 16                  | registry 并发请求数       |
-| `--no-cache`                         | —                   | 忽略本地缓存              |
-| `-c, --config <path>`                | 自动查找            | 指定配置文件              |
+| 参数                             | 默认值            | 说明                      |
+| -------------------------------- | ----------------- | ------------------------- |
+| `--recursive` / `--no-recursive` | 递归              | 是否递归扫描              |
+| `--depth <n>`                    | 不限              | 递归深度                  |
+| `--include` / `--exclude <glob>` | —                 | 扫描范围                  |
+| `-u, --upgrade`                  | 关                | 写入文件                  |
+| `-t, --target <t>`               | `latest`          | 目标版本策略              |
+| `--format <f>`                   | `exact`           | 写入格式                  |
+| `-f, --filter` / `-x, --reject`  | —                 | 按包名过滤                |
+| `--dep <types>`                  | 含 packageManager | 依赖类型                  |
+| `--level <levels>`               | 全部              | 只处理指定级别            |
+| `-i, --interactive`              | 关                | 交互选择                  |
+| `--group-by <g>`                 | `package`         | package / project / level |
+| `-c, --cooldown <period>`        | 0                 | 冷却期                    |
+| `--install <mode>`               | `prompt`          | 更新后是否 install        |
+| `--dry-run`                      | 关                | 只显示 diff               |
+| `--theme <name>`                 | `default`         | 颜色主题                  |
+| `--output <fmt>`                 | `table`           | table / json / markdown   |
+| `--error-on <cond>`              | —                 | 用于 CI，见下文           |
+| `--concurrency <n>`              | 16                | registry 并发请求数       |
+| `--no-cache`                     | —                 | 忽略本地缓存              |
+| `--config <path>`                | 自动查找          | 指定配置文件              |
 
 **示例**
 

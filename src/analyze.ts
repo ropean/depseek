@@ -66,6 +66,8 @@ export interface Analysis {
   metas: Map<string, PackageMeta>;
   deprecated: DeprecatedUse[];
   vulnerable: VulnerableUse[];
+  /** Projects the analysis covered (after --project / --workspace selection). */
+  projects?: Project[];
   /** True when --audit ran (successfully or not). */
   audited?: boolean;
   /** Set when --audit was requested but OSV could not be reached. */
@@ -108,6 +110,8 @@ export interface AnalyzeOptions {
   ignoreVersions?: Config['ignoreVersions'];
   groups?: Config['groups'];
   builtinGroups?: boolean;
+  /** ncu --minimal: skip targets the current range already satisfies. */
+  minimal?: boolean;
   runtime?: Config['runtime'];
   licenseCheck?: boolean;
   /** `up react@19 vite` — name → range ('' = use the target strategy). */
@@ -125,6 +129,7 @@ export function resolveFormat(
   cfg: Config['format'],
   target?: string,
 ): Format {
+  if (entry.kind === 'packageManager') return 'exact'; // "pnpm@^10" is not a valid packageManager
   if (target === 'semver') return 'preserve';
   if (cli) return cli;
   if (typeof cfg === 'string') return cfg;
@@ -295,6 +300,7 @@ export async function analyze(projects: Project[], entries: DepEntry[], opts: An
       target = pickTarget(meta, e.spec.base, strategy, e.spec.range, candOpts(e.name));
     }
     if (!target) continue;
+    if (opts.minimal && e.spec.range && semver.satisfies(target, e.spec.range)) continue;
     const u = makeUpdate(e, meta, target);
     if (u) updates.push(u);
   }
@@ -341,6 +347,7 @@ export async function analyze(projects: Project[], entries: DepEntry[], opts: An
     deprecated,
     filteredByLevel,
     vulnerable,
+    projects: sel.project ? projects.filter(sel.project) : projects,
     audited: Boolean(opts.audit),
     auditError,
   };

@@ -31,7 +31,10 @@ export interface Config {
   filter?: string[] | string;
   reject?: string[] | string;
   project?: string[] | string;
-  cooldown?: number;
+  /** Days, or a duration like "7d", "12h", "30m". */
+  cooldown?: number | string;
+  /** Skip versions the current range already allows (ncu --minimal). */
+  minimal?: boolean;
   install?: 'always' | 'prompt' | 'never';
   groupBy?: 'package' | 'project' | 'level';
   theme?: string | { name?: string; colors?: Partial<ThemeSpec> };
@@ -124,7 +127,7 @@ export const CONFIG_TEMPLATE = `{
   // or per dependency type:
   "format": { "prod": "exact", "dev": "exact", "peer": "caret" },
   "target": "latest",
-  "dep": ["prod", "dev", "optional"],
+  "dep": ["prod", "dev", "optional", "packageManager"],
   "cooldown": 0,
   "install": "prompt",
   "theme": "default",

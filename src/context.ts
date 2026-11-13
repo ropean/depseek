@@ -15,6 +15,8 @@ export interface Ctx {
   painter: Painter;
   out: (s?: string) => void;
   err: (s?: string) => void;
+  /** Machine-readable output; stays on when `out` is muted (e.g. -u with JSON output). */
+  stdout: (s?: string) => void;
   interactiveTTY: boolean;
 }
 
@@ -39,6 +41,7 @@ export function createContext(
     painter,
     out: (s = '') => process.stdout.write(`${s}\n`),
     err: (s = '') => process.stderr.write(`${s}\n`),
+    stdout: (s = '') => process.stdout.write(`${s}\n`),
     interactiveTTY: Boolean(process.stdin.isTTY && process.stdout.isTTY),
   };
 }

@@ -6,6 +6,7 @@ import { loadRegistryConfig, RegistryClient } from '../registry.js';
 import type { ScanResult } from '../scan.js';
 import { buildSelection, selectEntries, type Selection } from '../select.js';
 import { FORMATS, type Format } from '../spec.js';
+import { parseCooldown } from '../ncu.js';
 import { TARGETS } from '../versions.js';
 
 export interface Prepared {
@@ -30,8 +31,12 @@ export function getTarget(ctx: Ctx): string {
 }
 
 export function createClient(ctx: Ctx, dir: string): RegistryClient {
+  const config = loadRegistryConfig(dir);
+  if (ctx.opts.registry) config.registry = String(ctx.opts.registry).replace(/\/?$/, '/');
   return new RegistryClient({
-    config: loadRegistryConfig(dir),
+    config,
+    retries: ctx.opts.retry as number | undefined,
+    timeout: ctx.opts.timeout as number | undefined,
     concurrency: (ctx.opts.concurrency as number | undefined) ?? ctx.config.concurrency ?? 16,
     cacheTtl: ctx.config.cacheTtl ?? 10,
     useCache: ctx.opts.cache !== false,
@@ -73,7 +78,8 @@ export function analyzeOptions(ctx: Ctx, prep: Prepared, extra: Partial<AnalyzeO
     target: getTarget(ctx),
     format: getFormat(ctx),
     formatConfig: c.format,
-    cooldown: (ctx.opts.cooldown as number | undefined) ?? c.cooldown ?? 0,
+    cooldown: parseCooldown(ctx.opts.cooldown ?? c.cooldown) ?? 0,
+    minimal: Boolean(ctx.opts.minimal ?? c.minimal),
     pinWildcards: Boolean(ctx.opts.pinWildcards),
     pins: c.pin,
     ignoreVersions: c.ignoreVersions,

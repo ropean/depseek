@@ -21,7 +21,7 @@ export const LOCK_FILES: [string, PackageManager][] = [
 
 export type DepKind = 'prod' | 'dev' | 'peer' | 'optional' | 'overrides' | 'packageManager';
 export const DEP_KINDS: readonly DepKind[] = ['prod', 'dev', 'peer', 'optional', 'overrides', 'packageManager'];
-export const DEFAULT_DEP_KINDS: readonly DepKind[] = ['prod', 'dev', 'optional'];
+export const DEFAULT_DEP_KINDS: readonly DepKind[] = ['prod', 'dev', 'optional', 'packageManager'];
 
 export interface Project {
   /** Absolute path to package.json. */

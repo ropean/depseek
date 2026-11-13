@@ -255,6 +255,8 @@ Then simply release a new version with `pnpm release patch`.
 
 - **Language**: English is the default for code, comments, commit messages and docs. Chinese translations of docs live next to the
   English file with a `.zh-CN.md` suffix (see [CLAUDE.md](./CLAUDE.md)).
+- **Files**: UTF-8 without BOM, LF line endings (CRLF only for `.bat` / `.cmd`), enforced by `.editorconfig`,
+  `.gitattributes` and Prettier (`endOfLine: "lf"`) on every platform.
 - **Commit messages** follow conventional commits (`feat:`, `fix:`, `perf:`, `refactor:`, `docs:`,
   `chore:`; add `!` for breaking changes, e.g. `feat!: drop node 20`); the CHANGELOG is grouped accordingly.
 - **Versioning**: during `0.x` a minor may contain breaking changes; strict semver once stable.

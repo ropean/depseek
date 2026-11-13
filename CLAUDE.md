@@ -18,7 +18,8 @@ Guidance for Claude Code (and other contributors) working in this repository.
 
 ## Files and encoding
 
-- UTF-8 without BOM, LF line endings, final newline, 2-space indentation — see `.editorconfig` and `.gitattributes`.
+- UTF-8 without BOM, LF line endings (CRLF only for `.bat` / `.cmd`), final newline, 2-space indentation —
+  see `.editorconfig`, `.gitattributes` and `.prettierrc.json` (`endOfLine: "lf"`).
   Do not commit CRLF files, even on Windows; `.gitattributes` normalises them on commit.
 - Run `pnpm format` (Prettier) before committing; `pnpm run check` must pass.
 

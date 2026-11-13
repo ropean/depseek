@@ -253,6 +253,8 @@ npm unpublish @ropean/xxx@1.2.3                             # 仅 72 小时内�
 ## 6. 约定
 
 - **语言**：代码、注释、commit message 和文档默认使用英文。文档的中文版放在英文文件旁边，后缀为 `.zh-CN.md`（见 [CLAUDE.md](./CLAUDE.md)）。
+- **文件编码**：UTF-8（无 BOM），换行符 LF（仅 `.bat` / `.cmd` 用 CRLF），由 `.editorconfig`、`.gitattributes`
+  和 Prettier（`endOfLine: "lf"`）在各平台上统一保证。
 - **Commit message** 用 conventional commits（`feat:`、`fix:`、`perf:`、`refactor:`、`docs:`、
   `chore:`，破坏性变更加 `!`，如 `feat!: drop node 20`），CHANGELOG 按此自动分组。
 - **版本号**：`0.x` 阶段 minor 可以有破坏性变更；稳定后严格 semver。

@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { readdir, readFile, stat } from 'node:fs/promises';
-import { dirname, join, relative, resolve } from 'node:path';
+import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { isIgnored, loadIgnoreFile, type IgnoreFile } from './gitignore.js';
 import { extractDeps, LOCK_FILES, parsePnpmWorkspace, workspaceGlobs, type LockInfo, type Project } from './project.js';
 import { globToRegExp, pathMatcher } from './util/glob.js';
@@ -214,8 +214,11 @@ export function linkWorkspaces(projects: Project[]): void {
   const roots = projects.filter((p) => p.workspaces).sort((a, b) => b.dir.length - a.dir.length);
   for (const p of projects) {
     for (const r of roots) {
-      if (r === p || !p.dir.startsWith(r.dir + (r.dir.endsWith('/') ? '' : '/'))) continue;
-      const rel = toPosix(relative(r.dir, p.dir));
+      if (r === p) continue;
+      // `relative` instead of a `startsWith(dir + '/')` check: works with `\` separators and drive letters on Windows.
+      const relNative = relative(r.dir, p.dir);
+      if (relNative === '' || relNative === '..' || relNative.startsWith(`..${sep}`) || isAbsolute(relNative)) continue;
+      const rel = toPosix(relNative);
       const positives = r.workspaces!.filter((g) => !g.startsWith('!'));
       const negatives = r.workspaces!.filter((g) => g.startsWith('!')).map((g) => g.slice(1));
       const m = (g: string): boolean => globToRegExp(g.replace(/^\.\//, '').replace(/\/+$/, '')).test(rel);

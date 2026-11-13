@@ -1,9 +1,9 @@
 name: CI
 
+# Runs only for pushes to the `ci` branch or any branch starting with `ci` (e.g. `ci-windows`), plus manual runs.
 on:
   push:
-    branches: [main]
-  pull_request:
+    branches: ['ci', 'ci*']
   workflow_dispatch:
 
 concurrency:
@@ -17,12 +17,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest]
-        node: [22, 24]
-        include:
-          # Catch path / shebang / bin issues on other platforms (drop if the package is Linux-only).
-          - { os: macos-latest, node: 24 }
-          - { os: windows-latest, node: 24 }
+        # Catch path / shebang / bin issues on other platforms (drop if the package is Linux-only).
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        node: [24]
     steps:
       - uses: actions/checkout@v5
       - uses: pnpm/action-setup@v4

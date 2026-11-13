@@ -67,3 +67,35 @@ describe('findConflicts', () => {
     ]);
   });
 });
+
+describe('conflicts --fix', () => {
+  it('leaves a major line written one way alone when majors are kept apart', async () => {
+    const { conflictsCommand } = await import('./commands/conflicts.js');
+    const { createContext } = await import('./context.js');
+    const root = fixture({
+      'a/package.json': { name: 'a', dependencies: { react: '^18.3.1' } },
+      'b/package.json': { name: 'b', dependencies: { react: '19.0.0' } },
+      'c/package.json': { name: 'c', dependencies: { react: '^19.0.0' } },
+    });
+    const out: string[] = [];
+    const ctx = createContext('conflicts', { fix: true, dryRun: true, theme: 'mono' }, [], root);
+    ctx.out = (s = '') => void out.push(s);
+    ctx.err = (s = '') => void out.push(s);
+    expect(await conflictsCommand(ctx, [])).toBe(0);
+    const text = out.join('\n');
+    expect(text).toContain('+    "react": "19.0.0"'); // c aligned within 19.x
+    expect(text).not.toContain('a/package.json'); // ^18.3.1 untouched
+  });
+});
+
+describe('--error-on vulnerable', () => {
+  it('fails on vulnerable current versions even when the update fixes them', async () => {
+    const { analysisFails } = await import('./commands/shared.js');
+    const a = { updates: [], deprecated: [], vulnerable: [{ version: '1.0.0', vulns: [] }] };
+    expect(analysisFails(new Set(['vulnerable']), a as never)).toEqual(['vulnerabilities']);
+    expect(analysisFails(new Set(['vulnerable']), { ...a, vulnerable: [], auditError: 'offline' } as never)).toEqual([
+      'vulnerability check failed',
+    ]);
+    expect(analysisFails(new Set(['vulnerable']), { ...a, vulnerable: [] } as never)).toEqual([]);
+  });
+});

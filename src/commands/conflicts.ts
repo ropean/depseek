@@ -70,6 +70,8 @@ async function planFix(
     }
     if (crossMajor && !allowMajor) notes.push(`${c.name}: major lines kept apart (use --allow-major or -i)`);
     for (const bucket of bucketsOf(c, allowMajor)) {
+      // A major line written one way only has nothing to align (don't rewrite `^18.3.1` → `18.3.1`).
+      if (!explicit && align !== 'latest' && variantsOf(bucket).length < 2) continue;
       let target: string | undefined;
       if (explicit || align === 'latest') {
         let meta;

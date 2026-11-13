@@ -126,8 +126,12 @@ export function analysisFails(conds: Set<ErrorOn>, a: Analysis): string[] {
     why.push('deprecated versions');
   if (conds.has('peer') && a.updates.some((u) => u.warnings.some((w) => w.type === 'peer')))
     why.push('peer dependency problems');
-  if (conds.has('vulnerable') && a.updates.some((u) => u.warnings.some((w) => w.type === 'vulnerable')))
+  if (
+    conds.has('vulnerable') &&
+    (a.vulnerable.length || a.updates.some((u) => u.warnings.some((w) => w.type === 'vulnerable')))
+  )
     why.push('vulnerabilities');
+  if (conds.has('vulnerable') && a.auditError) why.push('vulnerability check failed');
   return why;
 }
 

@@ -183,6 +183,7 @@ function renderNotes(p: Painter, a: Analysis): string[] {
     out.push('');
   }
   if (a.auditError) out.push(p.paint('warn', `⚠ Vulnerability check failed: ${a.auditError}`), '');
+  else if (a.audited && !a.vulnerable.length) out.push(p.paint('ok', '✓ No known vulnerabilities (OSV)'), '');
   if (a.deprecated.length) {
     out.push(p.paint('deprecated', '⚠ Deprecated versions in use'));
     const seen = new Set<string>();

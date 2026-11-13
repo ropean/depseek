@@ -10,7 +10,8 @@ import { nameMatcher } from './util/glob.js';
 import { candidates, diffLevel, pickTarget, resolveRange, type Level } from './versions.js';
 
 /** `fixes` is informational: the upgrade resolves a known vulnerability. */
-export type WarningType = 'peer' | 'engines' | 'deprecated' | 'license' | 'vulnerable' | 'fixes' | 'group' | 'types';
+export type WarningType =
+  'peer' | 'engines' | 'deprecated' | 'license' | 'vulnerable' | 'fixes' | 'group' | 'types' | 'override';
 
 export interface Warning {
   type: WarningType;
@@ -65,6 +66,8 @@ export interface Analysis {
   metas: Map<string, PackageMeta>;
   deprecated: DeprecatedUse[];
   vulnerable: VulnerableUse[];
+  /** True when --audit ran (successfully or not). */
+  audited?: boolean;
   /** Set when --audit was requested but OSV could not be reached. */
   auditError?: string;
   /** Updates removed by --level. */
@@ -178,8 +181,19 @@ export async function analyze(projects: Project[], entries: DepEntry[], opts: An
   const ignored: { entry: DepEntry; reason: string }[] = [];
   const checkable: DepEntry[] = [];
 
+  // `up react@19.0.0` also moves react-dom: group members of an explicitly named package come along.
+  const companions = new Set<string>();
+  if (opts.explicit) {
+    for (const group of groupList(opts)) {
+      const match = nameMatcher(group)!;
+      const names = new Set(entries.filter((e) => match(e.name)).map((e) => e.name));
+      if ([...names].some((n) => opts.explicit!.get(n)))
+        for (const n of names) if (!opts.explicit.has(n)) companions.add(n);
+    }
+  }
+
   for (const e of entries) {
-    if (opts.explicit && !opts.explicit.has(e.name)) continue;
+    if (opts.explicit && !opts.explicit.has(e.name) && !companions.has(e.name)) continue;
     const reason = sel.ignored(e.name);
     if (reason && !opts.explicit) {
       ignored.push({ entry: e, reason });
@@ -262,6 +276,7 @@ export async function analyze(projects: Project[], entries: DepEntry[], opts: An
   for (const e of checkable) {
     const meta = metas.get(registryName(e));
     if (!meta) continue;
+    if (companions.has(e.name)) continue; // only moved by applyGroups
     const explicitRange = opts.explicit?.get(e.name);
     if (explicitRange) {
       const v = resolveRange(meta, explicitRange);
@@ -326,6 +341,7 @@ export async function analyze(projects: Project[], entries: DepEntry[], opts: An
     deprecated,
     filteredByLevel,
     vulnerable,
+    audited: Boolean(opts.audit),
     auditError,
   };
 }
@@ -345,29 +361,39 @@ function applyTypesFollow(
     if (!baseName || u.explicit) continue;
     const p = u.entry.project;
     let baseVersion: string | undefined;
+    // Unknown runtime: only the major is held, the minor may move freely.
+    let majorOnly = false;
+    let reason: string;
     if (baseName === 'node') {
       const engines = (p.json.engines as Record<string, string> | undefined)?.node;
-      baseVersion =
-        opts.runtime?.node ??
-        (engines && semver.validRange(engines) ? semver.minVersion(engines)?.version : undefined) ??
-        u.current; // unknown runtime → stay on the current major
+      const known =
+        opts.runtime?.node ?? (engines && semver.validRange(engines) ? semver.minVersion(engines)?.version : undefined);
+      baseVersion = known ?? u.current;
+      majorOnly = !known;
+      reason = known ? `node@${known}` : 'the current major (set runtime.node or engines.node to follow a runtime)';
     } else {
       const baseEntry =
         p.deps.find((d) => d.name === baseName && d.kind !== 'peer') ?? p.deps.find((d) => d.name === baseName);
       if (!baseEntry) continue;
       const baseUpdate = updates.find((x) => x.entry === baseEntry);
       baseVersion = baseUpdate?.target ?? baseEntry.spec.base;
+      reason = `${baseName}@${baseVersion}`;
     }
     const bv = baseVersion ? semver.coerce(baseVersion) : null;
     if (!bv) continue;
-    if (semver.major(u.target) === bv.major && (semver.major(u.target) !== 0 || semver.minor(u.target) <= bv.minor))
+    if (
+      semver.major(u.target) === bv.major &&
+      (majorOnly || semver.major(u.target) !== 0 || semver.minor(u.target) <= bv.minor)
+    )
       continue;
     const meta = metas.get(u.name)!;
     const pool = candidates(meta, candOpts(u.name)).filter(
       (v) => !semver.prerelease(v) && semver.major(v) === bv.major,
     );
     const sameMinor = pool.filter((v) => semver.minor(v) === bv.minor);
-    const best = semver.rsort(sameMinor.length ? sameMinor : pool.filter((v) => semver.minor(v) <= bv.minor))[0];
+    const best = majorOnly
+      ? semver.rsort(pool)[0]
+      : semver.rsort(sameMinor.length ? sameMinor : pool.filter((v) => semver.minor(v) <= bv.minor))[0];
     if (!best || !semver.gt(best, u.current)) {
       updates.splice(i, 1);
       continue;
@@ -381,10 +407,17 @@ function applyTypesFollow(
       level: lvl.level,
       zero: lvl.zero,
       published: meta.time[best],
-      warnings: [...u.warnings, { type: 'types', message: `held at ${bv.major}.x to match ${baseName}@${bv.version}` }],
+      warnings: [...u.warnings, { type: 'types', message: `held at ${bv.major}.x to match ${reason}` }],
     };
     if (updates[i]!.newRaw === u.entry.raw) updates.splice(i, 1);
   }
+}
+
+function groupList(opts: AnalyzeOptions): string[][] {
+  return [
+    ...(opts.builtinGroups === false ? [] : BUILTIN_GROUPS),
+    ...(opts.groups ?? []).map((g) => (Array.isArray(g) ? g : g.packages)),
+  ];
 }
 
 /** Packages in a group move to one common version inside each project. */
@@ -395,10 +428,7 @@ function applyGroups(
   opts: AnalyzeOptions,
   makeUpdate: (e: DepEntry, meta: PackageMeta, target: string, extra?: Partial<Update>) => Update | undefined,
 ): void {
-  const groups: string[][] = [
-    ...(opts.builtinGroups === false ? [] : BUILTIN_GROUPS),
-    ...(opts.groups ?? []).map((g) => (Array.isArray(g) ? g : g.packages)),
-  ];
+  const groups = groupList(opts);
   if (!groups.length) return;
   const byProject = new Map<Project, DepEntry[]>();
   for (const e of entries) {
@@ -414,7 +444,7 @@ function applyGroups(
       const present = memberUpdates.filter((u): u is Update => Boolean(u));
       const explicitTarget = present.find((u) => u.explicit && !u.downgrade)?.target;
       const targets = present.filter((u) => !u.explicit).map((u) => u.target);
-      if (!targets.length) continue;
+      if (!targets.length && !explicitTarget) continue;
       // An explicitly requested version (`up react@19.0.0`) wins; otherwise the lowest common target.
       const common = explicitTarget ?? semver.sort([...targets])[0]!;
       if (members.some((m) => m.spec.base && semver.gt(m.spec.base, common))) continue;
@@ -482,6 +512,29 @@ function runChecks(
       const before = cur ? meta.versions[cur]?.license : undefined;
       if (before && tm.license && before !== tm.license) {
         u.warnings.push({ type: 'license', message: `license changes ${before} → ${tm.license}` });
+      }
+    }
+  }
+
+  // overrides / resolutions in the project or its workspace root pin the installed version.
+  for (const u of updates) {
+    if (u.entry.kind === 'overrides' || u.entry.kind === 'packageManager') continue;
+    const owners = [u.entry.project, u.entry.project.workspaceRoot].filter((x): x is Project => Boolean(x));
+    for (const o of owners) {
+      for (const d of o.deps) {
+        if (d.kind !== 'overrides' || d.name !== u.name || d.spec.kind !== 'range' || !d.spec.range) continue;
+        // Only plain `name` / `**/name` keys pin every copy; nested `a>name` keys are scoped.
+        const key = d.path[d.path.length - 1] === '.' ? d.path[d.path.length - 2]! : d.path[d.path.length - 1]!;
+        if (key !== u.name && key !== `**/${u.name}`) continue;
+        const overUpdate = updates.find((x) => x.entry === d);
+        const range = overUpdate ? overUpdate.newRaw : d.spec.range;
+        if (semver.validRange(range) && !semver.satisfies(u.target, range, { includePrerelease: true })) {
+          const where = o === u.entry.project ? '' : ` in ${o.rel}`;
+          u.warnings.push({
+            type: 'override',
+            message: `${d.section}${where} pins ${u.name}@${range}; ${u.target} won't be installed (add --dep overrides)`,
+          });
+        }
       }
     }
   }

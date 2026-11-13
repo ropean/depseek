@@ -45,7 +45,7 @@ tsdown.config.ts      build: library → ESM + CJS + .d.mts/.d.cts; CLI → sing
 scripts/check.mjs     one-shot check: lint · typecheck · format · test · build · exports
 scripts/smoke.mjs     pack a tarball → install into a temp project → verify import/require/types/bin
 scripts/release.mjs   idempotent release: check → publish → CHANGELOG → commit → tag → push
-.github/workflows/    ci.yml (PRs / pushes to main) · release.yml (publishes on v* tags)
+.github/workflows/    ci.yml (pushes to `ci` / `ci*` branches) · release.yml (publishes on v* tags)
 ```
 
 ## 3. Common commands

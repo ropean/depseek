@@ -3,6 +3,8 @@ import { join, resolve } from 'node:path';
 import type { Update } from '../analyze.js';
 import { LEVELS } from '../versions.js';
 import type { Ctx } from '../context.js';
+import { interactiveSelect } from '../interactive.js';
+import { renderUpdates } from '../render/check.js';
 import { applyChanges } from './apply.js';
 import { printAnalysis } from './check.js';
 import { analysisFails, errorOn, parsePackageArgs, prepare, printSummary, runAnalysis } from './shared.js';
@@ -33,7 +35,7 @@ export async function upCommand(ctx: Ctx, args: string[], fromCheck = false): Pr
   if (!prep) return 1;
   printSummary(ctx, prep.result);
   const explicit = packages.length ? parsePackageArgs(packages) : undefined;
-  const a = await runAnalysis(ctx, prep, { explicit });
+  let a = await runAnalysis(ctx, prep, { explicit });
   if (explicit) {
     const found = new Set(a.entries.map((e) => e.name));
     for (const name of explicit.keys())
@@ -44,7 +46,25 @@ export async function upCommand(ctx: Ctx, args: string[], fromCheck = false): Pr
     return 1;
   }
 
-  printAnalysis(ctx, a);
+  if (ctx.opts.interactive) {
+    if (!ctx.interactiveTTY) {
+      ctx.err('Interactive mode needs a terminal (stdin and stdout must be a TTY).');
+      return 1;
+    }
+    if (!a.updates.length) {
+      printAnalysis(ctx, a);
+      return 0;
+    }
+    const picked = await interactiveSelect(ctx, a);
+    if (!picked?.length) {
+      ctx.out(ctx.painter.paint('dim', 'Nothing written.'));
+      return 0;
+    }
+    a = { ...a, updates: picked };
+    ctx.out(renderUpdates(ctx.painter, a, 'package', { showWarnings: true }));
+  } else {
+    printAnalysis(ctx, a);
+  }
   ctx.out();
   if (!a.updates.length) return 0;
 

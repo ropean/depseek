@@ -43,6 +43,7 @@ const OPTIONS: Record<string, OptSpec> = {
   align: { type: 'string' },
   'allow-major': { type: 'boolean' },
   // writing
+  interactive: { type: 'boolean', short: 'i' },
   'dry-run': { type: 'boolean', short: 'n' },
   diff: { type: 'boolean' },
   install: { type: 'string' },
@@ -96,6 +97,7 @@ Conflicts
 
 Writing
   -u, --upgrade                       write changes to package.json
+  -i, --interactive                   pick updates in a full-screen list
   -n, --dry-run                       only print the diff
   --no-diff                           don't print the diff before writing
   --install <mode>                    always | prompt | never (default prompt)
@@ -162,7 +164,7 @@ async function main(argv: string[]): Promise<number> {
     default:
       if (opts.listFiles) return treeCommand(ctx, positionals, Boolean(opts.tree));
       if (opts.tree) return treeCommand(ctx, positionals, true);
-      if (opts.upgrade) return upCommand(ctx, positionals, true);
+      if (opts.upgrade || opts.interactive) return upCommand(ctx, positionals, true);
       return checkCommand(ctx, positionals);
   }
 }

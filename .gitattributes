@@ -1,2 +1,69 @@
-# Force LF everywhere (incl. Windows CI checkouts) so Prettier's endOfLine: "lf" passes.
+# Normalise line endings on every platform.
+# Everything detected as text is stored in the repo with LF and checked out
+# with LF (also on Windows, regardless of core.autocrlf), so Prettier's
+# `endOfLine: "lf"`, shebangs in bin scripts and snapshot tests behave the same
+# everywhere. Files must be UTF-8 without BOM (see .editorconfig).
 * text=auto eol=lf
+
+# ── Source & config (explicitly text, LF) ───────────────────────────────────
+*.ts          text eol=lf diff=javascript
+*.mts         text eol=lf diff=javascript
+*.cts         text eol=lf diff=javascript
+*.tsx         text eol=lf diff=javascript
+*.js          text eol=lf diff=javascript
+*.mjs         text eol=lf diff=javascript
+*.cjs         text eol=lf diff=javascript
+*.jsx         text eol=lf diff=javascript
+*.json        text eol=lf
+*.jsonc       text eol=lf
+*.json5       text eol=lf
+*.yml         text eol=lf
+*.yaml        text eol=lf
+*.toml        text eol=lf
+*.md          text eol=lf diff=markdown
+*.txt         text eol=lf
+*.html        text eol=lf diff=html
+*.css         text eol=lf diff=css
+*.svg         text eol=lf
+*.sh          text eol=lf
+.editorconfig text eol=lf
+.gitattributes text eol=lf
+.gitignore    text eol=lf
+.npmrc        text eol=lf
+.prettierrc*  text eol=lf
+.prettierignore text eol=lf
+LICENSE       text eol=lf
+
+# Windows batch scripts must keep CRLF to run correctly in cmd.exe.
+*.bat         text eol=crlf
+*.cmd         text eol=crlf
+
+# ── Lock files: text, but collapsed in diffs and excluded from language stats ─
+pnpm-lock.yaml  text eol=lf -diff linguist-generated=true
+package-lock.json text eol=lf -diff linguist-generated=true
+yarn.lock       text eol=lf -diff linguist-generated=true
+bun.lock        text eol=lf -diff linguist-generated=true
+bun.lockb       binary
+CHANGELOG.md    linguist-generated=true
+
+# ── Binary files (never touch line endings, never diff as text) ─────────────
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.webp  binary
+*.avif  binary
+*.ico   binary
+*.pdf   binary
+*.woff  binary
+*.woff2 binary
+*.ttf   binary
+*.otf   binary
+*.eot   binary
+*.zip   binary
+*.gz    binary
+*.tgz   binary
+*.tar   binary
+*.7z    binary
+*.wasm  binary
+*.node  binary

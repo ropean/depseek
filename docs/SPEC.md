@@ -1,50 +1,52 @@
-# 依赖扫描与版本统一 CLI — 需求规格
+# Dependency Scanning and Version Alignment CLI — Requirements Spec
+
+English | [简体中文](./SPEC.zh-CN.md)
 
 Nov 13, 2026 · @Wei Guo
 
-## 概述
+## Overview
 
-一个 CLI 工具，一次扫描某个目录下所有 package.json（非 monorepo 也可以），列出版本冲突和可用更新，并能按指定的版本写法批量更新。交互方式参考 ncu，再加上 ncu 没有的跨项目冲突检测和统一功能。命令名为 `depseek`。
+A CLI that scans every package.json under a directory in one pass (no monorepo required), lists version conflicts and available updates, and can update them in bulk using a chosen version style. The interaction model follows ncu, plus cross-project conflict detection and alignment, which ncu does not have. The command is `depseek`.
 
-**设计原则**
+**Design principles**
 
-- **默认只读**：不加 `-u` 只显示结果，绝不改文件。
-- **默认安全**：写文件前先显示 diff；支持 `--dry-run`；改之前做备份或要求 git 工作区干净。
-- **保留原格式**：写回时保持原来的缩进、换行符、字段顺序和文件末尾换行，只改版本号字符串。
-- **包管理器无关**：只读写 package.json，install 交给用户选择的包管理器（默认识别 bun）。
-- **对 ncu 用户零学习成本**：长短参数、JSON 输出、`.ncurc` 配置与 ncu 兼容，`ncu` 换成 `depseek` 即可（见 README「从 ncu 迁移」）。
+- **Read-only by default**: without `-u` it only shows results and never touches a file.
+- **Safe by default**: show a diff before writing files; support `--dry-run`; back up or require a clean git working tree before changing anything.
+- **Formatting preserved**: keep the original indentation, line endings, key order and trailing newline when writing back; only change version strings.
+- **Package-manager agnostic**: only read and write package.json; leave install to the package manager the user chooses (bun detected by default).
+- **Zero learning curve for ncu users**: long/short flags, JSON output and `.ncurc` config are compatible with ncu; replacing `ncu` with `depseek` is enough (see [Migrating from ncu](../README.md#migrating-from-ncu) in the README).
 
-**与 ncu 的主要区别**
+**Main differences from ncu**
 
-| 方面              | ncu               | 本工具                           |
-| ----------------- | ----------------- | -------------------------------- |
-| 多个 package.json | `--deep` 逐个显示 | 汇总视图，同一依赖跨项目合并显示 |
-| 版本冲突          | 不检测            | 核心功能                         |
-| 写入格式          | 保留原前缀        | 可统一指定 exact / \~ / ^ 等     |
-| 统一版本          | 不支持            | 一条命令对齐所有项目             |
+| Aspect                | ncu                            | This tool                                                      |
+| --------------------- | ------------------------------ | -------------------------------------------------------------- |
+| Multiple package.json | `--deep` shows them one by one | Aggregated view; the same dependency is merged across projects |
+| Version conflicts     | Not detected                   | Core feature                                                   |
+| Write style           | Keeps the original prefix      | Can enforce exact / \~ / ^ etc.                                |
+| Aligning versions     | Not supported                  | One command aligns every project                               |
 
-## 扫描
+## Scanning
 
-默认从当前目录递归查找所有 package.json。
+Finds every package.json recursively from the current directory by default.
 
-**你提出的**
+**Requested**
 
-- 指定目录：`depseek [dir...]`，默认 `.`，可以传多个。
-- 是否递归：默认递归；`--no-recursive` 只看该目录本身。
+- Directories: `depseek [dir...]`, default `.`, multiple allowed.
+- Recursion: recursive by default; `--no-recursive` looks only at the directory itself.
 
-**补充**
+**Additions**
 
-- **深度限制**：`--depth <n>`，防止扫到太深的目录。
-- **默认忽略**：`node_modules`、`.git`、`dist`、`build`、`.next`、`.output`、`.wrangler`、`.turbo`、`coverage`、`.cache`。
-- **遵守 .gitignore**：默认开启，`--no-gitignore` 关闭。可以自动排除生成的文件和临时目录。
-- **自定义包含/排除**：`--include <glob>`、`--exclude <glob>`，可重复使用。
-- **不跟随符号链接**：默认不跟随，避免循环和重复扫描。
-- **跳过模板和测试夹具**：比如 `fixtures/`、`templates/`、`examples/` 里的 package.json 往往不该动，建议在默认忽略列表里可配置。
-- **容错**：JSON 解析失败的文件报警告并跳过，不中断整个扫描。
-- **识别项目信息**：每个 package.json 记录其 `name`、相对路径、旁边的 lock 文件类型（bun.lock / package-lock.json / pnpm-lock.yaml / yarn.lock），用于显示和之后的 install。
-- **识别 workspace**：如果某个 package.json 有 `workspaces` 字段，标记其子包，并把 `workspace:*` 这类内部依赖排除在更新之外。
-- **扫描结果摘要**：开头显示“扫描到 N 个 package.json，共 M 个不同依赖”；`--list-files` 只列出找到的文件，用来确认扫描范围对不对。
-- **树形列出位置**：`depseek tree [dir...]`（或 `--list-files --tree`）按目录树显示每个 package.json 的位置，并附带 `name@version`、依赖数、lock 文件、workspace 角色；只有一个子目录的目录链合并显示（如 `deep/nested/x`），解析失败的文件用 ✖ 标出。`--ascii` 用 ASCII 画线，`-o json` 输出列表。
+- **Depth limit**: `--depth <n>`, to avoid scanning too deep.
+- **Default ignores**: `node_modules`, `.git`, `dist`, `build`, `.next`, `.output`, `.wrangler`, `.turbo`, `coverage`, `.cache`.
+- **Honour .gitignore**: on by default, `--no-gitignore` turns it off. Automatically excludes generated files and temp directories.
+- **Custom include/exclude**: `--include <glob>`, `--exclude <glob>`, repeatable.
+- **Do not follow symlinks**: off by default, to avoid loops and duplicate scans.
+- **Skip templates and test fixtures**: package.json files in `fixtures/`, `templates/`, `examples/` usually should not be touched; these should be in the default ignore list, configurable.
+- **Fault tolerance**: files that fail to parse as JSON produce a warning and are skipped without aborting the scan.
+- **Project info**: record each package.json's `name`, relative path and the adjacent lock file type (bun.lock / package-lock.json / pnpm-lock.yaml / yarn.lock), for display and later installs.
+- **Workspace detection**: if a package.json has a `workspaces` field, mark its sub-packages and exclude internal dependencies such as `workspace:*` from updates.
+- **Scan summary**: start with "Found N package.json files, M distinct dependencies"; `--list-files` lists only the files found, to confirm the scan scope.
+- **Tree of locations**: `depseek tree [dir...]` (or `--list-files --tree`) shows where each package.json lives as a directory tree, with `name@version`, dependency count, lock file and workspace role; chains of single-child directories are collapsed (e.g. `deep/nested/x`), files that fail to parse are marked with ✖. `--ascii` draws with ASCII, `-o json` prints a list.
 
 ```
 . (5 package.json)  mono  2 deps  [workspace root, private, bun.lock]
@@ -56,252 +58,252 @@ Nov 13, 2026 · @Wei Guo
     └── deep/nested/x  x  3 deps
 ```
 
-## 冲突检测
+## Conflict detection
 
-`depseek conflicts` 列出同一个依赖在不同 package.json 里版本不一致的情况，按依赖名分组显示。
+`depseek conflicts` lists dependencies whose versions differ between package.json files, grouped by dependency name.
 
-**冲突类型**
+**Conflict types**
 
-| 类型            | 例子                                           | 严重程度   |
-| --------------- | ---------------------------------------------- | ---------- |
-| 主版本不同      | A 用 `react@^18.3.1`，B 用 `react@^19.0.0`     | 高（红色） |
-| 次版本/补丁不同 | A 用 `zod@^3.22.0`，B 用 `zod@^3.24.1`         | 中（黄色） |
-| 写法不同        | A 用 `~5.6.2`，B 用 `5.6.2`                    | 低（灰色） |
-| 依赖类型不同    | A 放在 dependencies，B 放在 devDependencies    | 提示       |
-| peer 不满足     | 安装的版本不满足某个包的 peerDependencies 范围 | 高（红色） |
+| Type                      | Example                                                                   | Severity        |
+| ------------------------- | ------------------------------------------------------------------------- | --------------- |
+| Different major           | A uses `react@^18.3.1`, B uses `react@^19.0.0`                            | High (red)      |
+| Different minor/patch     | A uses `zod@^3.22.0`, B uses `zod@^3.24.1`                                | Medium (yellow) |
+| Written differently       | A uses `~5.6.2`, B uses `5.6.2`                                           | Low (grey)      |
+| Different dependency type | A has it in dependencies, B in devDependencies                            | Hint            |
+| Unmet peer                | The installed version does not satisfy a package's peerDependencies range | High (red)      |
 
-**显示方式**
+**Display**
 
-- 每个冲突依赖一组，列出各个版本及使用它的项目路径，版本按使用次数从多到少排。
-- 标出建议的统一目标（默认是现有的最高版本）。
-- 底部汇总：X 个依赖有冲突，其中 Y 个跨主版本。
+- One group per conflicting dependency, listing each version and the project paths using it, versions sorted by usage count, most first.
+- Mark the suggested alignment target (by default the highest version in use).
+- Footer summary: X dependencies have conflicts, Y of them across major versions.
 
-**统一（fix）**
+**Aligning (fix)**
 
-`depseek conflicts --fix` 把每个冲突依赖对齐到同一个版本，目标可选：
+`depseek conflicts --fix` aligns each conflicting dependency to one version; the target can be:
 
-- `--align highest`（默认）：对齐到各项目中已有的最高版本
-- `--align lowest`：对齐到最低版本，最保守
-- `--align most-used`：对齐到使用最多的版本
-- `--align latest`：直接对齐到 registry 上的最新版
-- `--align <version>`：只用于单个包，如 `depseek conflicts react --fix --align 19.0.0`
+- `--align highest` (default): the highest version already used by any project
+- `--align lowest`: the lowest version, the most conservative
+- `--align most-used`: the most used version
+- `--align latest`: the latest version on the registry
+- `--align <version>`: only for a single package, e.g. `depseek conflicts react --fix --align 19.0.0`
 
-默认不跨主版本对齐，跨主版本需要加 `--allow-major` 或在交互模式中逐个确认。配置里可以声明“允许不一致”的依赖或项目分组（见配置文件）。
+Alignment does not cross major versions by default; crossing requires `--allow-major` or confirming each one in interactive mode. The config can declare dependencies or project groups that are "allowed to differ" (see the config file).
 
-## 检查更新
+## Checking for updates
 
-`depseek check`（不带子命令时的默认行为）列出可用更新，按升级级别分组并着色。
+`depseek check` (the default when no subcommand is given) lists available updates, grouped and coloured by upgrade level.
 
-**更新级别与默认配色**
+**Update levels and default colours**
 
-| 级别         | 含义                                     | 默认颜色    |
-| ------------ | ---------------------------------------- | ----------- |
-| major        | 主版本变化，可能有破坏性改动             | 红色        |
-| minor        | 次版本，新增功能                         | 青色        |
-| patch        | 补丁，修 bug                             | 绿色        |
-| 0.x 的 minor | 如 `0.3 → 0.4`，按 semver 惯例视为破坏性 | 红色        |
-| prerelease   | beta / rc / canary                       | 品红色      |
-| 已废弃       | 当前或目标版本被 deprecated              | 黄色 + 标记 |
+| Level        | Meaning                                            | Default colour  |
+| ------------ | -------------------------------------------------- | --------------- |
+| major        | Major version change, may contain breaking changes | Red             |
+| minor        | Minor version, new features                        | Cyan            |
+| patch        | Patch, bug fixes                                   | Green           |
+| minor on 0.x | E.g. `0.3 → 0.4`, breaking by semver convention    | Red             |
+| prerelease   | beta / rc / canary                                 | Magenta         |
+| Deprecated   | The current or target version is deprecated        | Yellow + marker |
 
-**输出内容**
+**Output**
 
-- 每行：包名、当前范围、→、目标版本、级别、发布时间（如“3 天前”）。
-- 目标版本只对变化的部分着色，如 `1.2.3 → 1.`**`4.0`**，一眼看出改了哪一位。
-- 两种分组视图：`--group-by package`（默认，同一依赖跨项目合并为一行，后面列出影响的项目）和 `--group-by project`（按 package.json 分块，类似 ncu --deep）。
-- `--group-by level`：按 major / minor / patch 分块显示。
-- 底部统计：patch X 个，minor Y 个，major Z 个。
+- Each line: package name, current range, →, target version, level, publish time (e.g. "3 days ago").
+- Only the changed part of the target version is coloured, e.g. `1.2.3 → 1.`**`4.0`**, so the changed segment is obvious at a glance.
+- Two grouping views: `--group-by package` (default; the same dependency across projects is one line followed by the affected projects) and `--group-by project` (one block per package.json, like ncu --deep).
+- `--group-by level`: blocks by major / minor / patch.
+- Footer: X patch, Y minor, Z major.
 
-**颜色主题**
+**Colour themes**
 
-- 内置主题：`default`、`dark`、`light`、`colorblind`（红绿色盲友好，用蓝/橙配色加符号区分）、`mono`（无颜色，只用粗体和符号）。
-- `--theme <name>` 切换；配置文件里可以自定义每个级别的颜色。
-- 除了颜色，每个级别还带一个文字标签或符号，保证不看颜色也能分辨。
-- 遵守 `NO_COLOR` / `FORCE_COLOR` 环境变量，输出到管道或文件时自动关闭颜色。
+- Built-in themes: `default`, `dark`, `light`, `colorblind` (red-green colour-blind friendly, blue/orange plus symbols), `mono` (no colour, only bold and symbols).
+- `--theme <name>` switches; the config file can customise the colour of each level.
+- Besides colour, every level has a text label or symbol, so it can be told apart without colour.
+- Honour the `NO_COLOR` / `FORCE_COLOR` environment variables, and disable colour automatically when writing to a pipe or file.
 
-**版本查询**
+**Version lookup**
 
-- 从 registry 并发拉取元数据，并发数可配（`--concurrency`，默认 16）。
-- 同一个包只查一次，即使它出现在很多个 package.json 里。
-- 本地缓存结果，默认 10 分钟有效，`--no-cache` 强制刷新。
-- 读取 `.npmrc` 和 `bunfig.toml` 里的 registry 与私有 scope 配置，支持带 token 的私有源。
+- Fetch metadata from the registry concurrently, configurable (`--concurrency`, default 16).
+- Each package is fetched once, even if it appears in many package.json files.
+- Cache results locally, valid for 10 minutes by default; `--no-cache` forces a refresh.
+- Read registry and private scope settings from `.npmrc` and `bunfig.toml`, including private registries with tokens.
 
-## 更新
+## Updating
 
-更新由两个独立的选择组成：**升到哪个版本**（target）和**版本号写成什么样**（format）。`depseek -u` 或 `depseek up` 执行写入。
+An update consists of two independent choices: **which version to move to** (target) and **how to write the version** (format). `depseek -u` or `depseek up` writes.
 
-**写入格式（`--format`）**
+**Write style (`--format`)**
 
-| 格式            | 写入结果        | 说明                                      |
-| --------------- | --------------- | ----------------------------------------- |
-| `exact`（默认） | `1.4.2`         | 你提出的默认方式，锁定具体版本            |
-| `tilde`         | `~1.4.2`        | 允许后续 patch                            |
-| `caret`         | `^1.4.2`        | 允许后续 minor 和 patch                   |
-| `preserve`      | 沿用原前缀      | 原来是 `^` 就还是 `^`，和 ncu 行为一致    |
-| `gte`           | `>=1.4.2`       | 少用，适合库的 peerDependencies           |
-| `x-range`       | `1.x` / `1.4.x` | 按原来的精度保留通配符，只提升主/次版本号 |
+| Format            | Result          | Notes                                                                |
+| ----------------- | --------------- | -------------------------------------------------------------------- |
+| `exact` (default) | `1.4.2`         | The requested default; pins a specific version                       |
+| `tilde`           | `~1.4.2`        | Allows later patches                                                 |
+| `caret`           | `^1.4.2`        | Allows later minors and patches                                      |
+| `preserve`        | Keep the prefix | `^` stays `^`, matching ncu                                          |
+| `gte`             | `>=1.4.2`       | Rarely used; suits a library's peerDependencies                      |
+| `x-range`         | `1.x` / `1.4.x` | Keeps the wildcard at its original precision, only bumps major/minor |
 
-建议支持**按依赖类型设置不同格式**，比如应用的 dependencies 用 `exact`，库的 peerDependencies 用 `caret`。配置里写 `format: { dependencies: "exact", peerDependencies: "caret" }`。
+**Per-dependency-type formats** are recommended, e.g. `exact` for an app's dependencies and `caret` for a library's peerDependencies. In the config: `format: { dependencies: "exact", peerDependencies: "caret" }`.
 
-**目标版本（`--target`，参考 ncu）**
+**Target version (`--target`, following ncu)**
 
-| 目标             | 含义                                         |
-| ---------------- | -------------------------------------------- |
-| `latest`（默认） | registry 上 `latest` 标签的版本              |
-| `minor`          | 不跨主版本，升到当前主版本内最新             |
-| `patch`          | 只升 patch                                   |
-| `semver`         | 只升到当前范围允许的最高版（不改变范围含义） |
-| `greatest`       | 最高版本号，包含 prerelease                  |
-| `newest`         | 最近发布的版本，不管版本号大小               |
-| `@<tag>`         | 指定 dist-tag，如 `@next`、`@beta`           |
+| Target             | Meaning                                                                           |
+| ------------------ | --------------------------------------------------------------------------------- |
+| `latest` (default) | The version under the registry's `latest` tag                                     |
+| `minor`            | Do not cross the major; latest within the current major                           |
+| `patch`            | Patch bumps only                                                                  |
+| `semver`           | Only up to the highest version the current range allows (range meaning unchanged) |
+| `greatest`         | Highest version number, prereleases included                                      |
+| `newest`           | Most recently published version, regardless of number                             |
+| `@<tag>`           | A specific dist-tag, e.g. `@next`, `@beta`                                        |
 
-**更新为特定版本**
+**Updating to a specific version**
 
-- `depseek up react@19.0.0`：把所有项目里的 react 都更新为 19.0.0（按 `--format` 写前缀）。
-- `depseek up react@^19`：解析为满足范围的最新版本。
-- 可以一次传多个：`depseek up react@19.0.0 react-dom@19.0.0`。
-- 写入前校验该版本在 registry 上确实存在。
+- `depseek up react@19.0.0`: set react to 19.0.0 in every project (prefix written according to `--format`).
+- `depseek up react@^19`: resolves to the latest version satisfying the range.
+- Several at once: `depseek up react@19.0.0 react-dom@19.0.0`.
+- Verify the version actually exists on the registry before writing.
 
-**只改格式不升级**
+**Changing the style without upgrading**
 
-`depseek format --to exact`：只把现有的 `^1.2.3`、`~1.2.3` 改写成 `1.2.3`（或反向），版本号不变。统一写法时很有用。改为 exact 时，可选用 lock 文件里实际安装的版本（`--from-lock`），而不是范围的下限。
+`depseek format --to exact`: only rewrites existing `^1.2.3`, `~1.2.3` to `1.2.3` (or the reverse), keeping the version. Useful for unifying style. When converting to exact, the version actually installed according to the lock file can be used (`--from-lock`) instead of the range's lower bound.
 
-**特殊版本写法的处理**
+**Special version specs**
 
-| 写法                                       | 默认处理                                                     |
-| ------------------------------------------ | ------------------------------------------------------------ |
-| `workspace:*`、`file:`、`link:`、`portal:` | 跳过                                                         |
-| git / GitHub URL、tarball URL              | 跳过，列为“无法检查”                                         |
-| `npm:pkg@x` 别名                           | 按真实包名查询，写回时保留别名形式                           |
-| `*`、`latest`、`x`                         | 默认跳过，`--pin-wildcards` 时改为具体版本                   |
-| `catalog:`                                 | 跳过（如果以后用 bun workspaces，可以改为更新 catalog 本身） |
-| `overrides` / `resolutions`                | 也参与检查和更新，但单独标记                                 |
-| `engines`、`packageManager`                | 可选检查（如 bun 版本），默认关闭                            |
+| Spec                                       | Default handling                                                         |
+| ------------------------------------------ | ------------------------------------------------------------------------ |
+| `workspace:*`, `file:`, `link:`, `portal:` | Skipped                                                                  |
+| git / GitHub URL, tarball URL              | Skipped, listed as "cannot check"                                        |
+| `npm:pkg@x` alias                          | Looked up by the real package name, written back in alias form           |
+| `*`, `latest`, `x`                         | Skipped by default; `--pin-wildcards` turns them into concrete versions  |
+| `catalog:`                                 | Skipped (with bun workspaces, the catalog itself could be updated later) |
+| `overrides` / `resolutions`                | Also checked and updated, but marked separately                          |
+| `engines`, `packageManager`                | Optional checks (e.g. the bun version), off by default                   |
 
-## 过滤与选择
+## Filtering and selection
 
-所有命令（check / conflicts / up）共用同一套过滤参数。
+All commands (check / conflicts / up) share the same filter flags.
 
-- **按包名**：`-f, --filter <pattern>` 只处理匹配的包；`-x, --reject <pattern>` 排除。支持通配符（`@types/*`）、逗号分隔和 `/regex/`，与 ncu 一致。
-- **按依赖类型**：`--dep prod,dev,peer,optional,overrides,packageManager`，默认 `prod,dev,optional,packageManager`（与 ncu 一致；peer 默认不动，因为它是给使用者的约束）。
-- **按项目**：`--project <glob>` 只处理匹配路径或 `name` 的 package.json。
-- **按级别**：`--level patch,minor` 只显示/更新这些级别，比如日常只自动升 patch。
-- **按发布时间**：`-c, --cooldown <period>`（`7`、`7d`、`12h`、`30m`）忽略刚发布的版本，避开刚发布就被撤回或被投毒的版本（见补充功能）。
+- **By package name**: `-f, --filter <pattern>` only handles matching packages; `-x, --reject <pattern>` excludes. Wildcards (`@types/*`), comma-separated lists and `/regex/` are supported, as in ncu.
+- **By dependency type**: `--dep prod,dev,peer,optional,overrides,packageManager`, default `prod,dev,optional,packageManager` (as in ncu; peer is left alone by default since it is a constraint for consumers).
+- **By project**: `--project <glob>` only handles package.json files whose path or `name` matches.
+- **By level**: `--level patch,minor` only shows/updates those levels, e.g. auto-upgrading only patches day to day.
+- **By publish time**: `-c, --cooldown <period>` (`7`, `7d`, `12h`, `30m`) ignores freshly published versions, avoiding versions yanked or poisoned right after release (see Additional features).
 
-**交互模式（`-i`）**
+**Interactive mode (`-i`)**
 
-- 列表按 major / minor / patch 分组，默认勾选 patch 和 minor，major 默认不勾。
-- 快捷键：空格勾选，`a` 全选，`p` / `m` / `M` 按级别全选，`/` 搜索。
-- 选中某一行可以展开：看影响的项目列表、选择其他版本（不一定是最新）、打开 changelog 链接。
-- 同一依赖在多个项目里合并为一行，可以展开后只勾选部分项目。
-- 确认前显示将要修改的文件数和依赖数。
+- The list is grouped by major / minor / patch; patch and minor are selected by default, major is not.
+- Keys: space toggles, `a` selects all, `p` / `m` / `M` select by level, `/` searches.
+- A row can be expanded: see the affected projects, pick another version (not necessarily the latest), open the changelog link.
+- The same dependency across projects is one row; after expanding, only some projects can be selected.
+- Before confirming, show how many files and dependencies will change.
 
-## 补充功能
+## Additional features
 
-下面是你没有提到、但在多项目依赖管理中常见且有用的功能，按建议优先级排序。
+Features that were not requested but are common and useful when managing dependencies across projects, in suggested priority order.
 
-| 功能                    | 解决什么问题                                                                                                                 | 优先级 |
-| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ------ |
-| **更新后自动 install**  | 改完 package.json 后 lock 文件不同步。`--install always\|prompt\|never`，按每个项目的 lock 文件识别包管理器，并行执行        | P0     |
-| **关联包一起升级**      | `react` 和 `react-dom`、`@types/react` 版本必须配套。内置常见分组，并支持配置 `groups`（如 `@tanstack/*`），组内升到同一版本 | P0     |
-| **撤销（undo）**        | 更新后发现出问题。每次写入前备份所有被改的 package.json，`depseek undo` 一键恢复                                             | P0     |
-| **Dry run / diff 预览** | 想先看看会改什么。`--dry-run` 输出统一 diff                                                                                  | P0     |
-| **版本冷却期**          | 供应链攻击常在发布后几小时内被发现和撤回。`--cooldown 3` 不升到 3 天内发布的版本                                             | P1     |
-| **已废弃提示**          | 用着已 deprecated 的包或版本却不知道。显示废弃信息及推荐替代                                                                 | P1     |
-| **安全漏洞检查**        | 查 OSV / GitHub Advisory，标出当前版本有已知漏洞的依赖，并提示“升到哪个版本可修复”                                           | P1     |
-| **忽略与锁定**          | 某些包故意不升级，或某个版本已知有 bug。配置 `ignore`、`pin`、`ignoreVersions`（如 `vite@6.1.0`），可加备注说明原因          | P1     |
-| **peer 依赖预检**       | 升级 A 后不再满足 B 的 peerDependencies。写入前计算并警告                                                                    | P1     |
-| **changelog 链接**      | 不知道 major 升级改了什么。从 repository 字段生成 GitHub Releases / CHANGELOG 链接；可选拉取 release 标题                    | P1     |
-| **doctor 模式**         | 参考 ncu `--doctor`：逐个升级并运行测试命令，失败就回退该包，最后报告哪些可以安全升级                                        | P2     |
-| **engines 兼容检查**    | 新版本要求更高的 Node / Bun。对照本地或配置里声明的运行时版本，不兼容则警告                                                  | P2     |
-| **@types 版本跟随**     | `@types/node` 等应与实际运行时/主包的主版本一致，而不是无脑升到最新                                                          | P2     |
-| **Git 集成**            | 要求工作区干净才能写入（可关）；`--commit` 按级别或分组自动提交，提交信息列出升级的包                                        | P2     |
-| **报告导出**            | `--output json\|markdown`，markdown 可直接贴到 PR 描述里                                                                     | P2     |
-| **许可证变化提醒**      | 新版本换了 license（如 MIT → BSL）时警告，对商业项目很重要                                                                   | P2     |
-| **未使用依赖检测**      | package.json 里有但代码没 import 的依赖。工作量大，可以以后做或调用 knip                                                     | P3     |
-| **包体积变化**          | 升级后依赖体积变大多少。对前端项目有用，但需要额外数据源                                                                     | P3     |
+| Feature                         | Problem it solves                                                                                                                                                    | Priority |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| **Install after updating**      | Lock files fall out of sync after package.json changes. `--install always\|prompt\|never`; detect the package manager from each project's lock file, run in parallel | P0       |
+| **Related packages together**   | `react`, `react-dom` and `@types/react` must match. Built-in common groups plus a `groups` config (e.g. `@tanstack/*`); a group moves to the same version            | P0       |
+| **Undo**                        | An update turns out to break things. Back up every changed package.json before writing; `depseek undo` restores in one step                                          | P0       |
+| **Dry run / diff preview**      | See what would change first. `--dry-run` prints a unified diff                                                                                                       | P0       |
+| **Version cooldown**            | Supply-chain attacks are often discovered and yanked within hours of release. `--cooldown 3` skips versions published in the last 3 days                             | P1       |
+| **Deprecation notices**         | A deprecated package or version is in use without anyone knowing. Show the deprecation message and recommended replacement                                           | P1       |
+| **Vulnerability checks**        | Query OSV / GitHub Advisory, flag dependencies whose current version has known vulnerabilities, and suggest "upgrade to X to fix"                                    | P1       |
+| **Ignore and pin**              | Some packages are deliberately held back, or a version is known to be buggy. Config `ignore`, `pin`, `ignoreVersions` (e.g. `vite@6.1.0`), with a note on the reason | P1       |
+| **Peer dependency pre-check**   | Upgrading A breaks B's peerDependencies. Compute and warn before writing                                                                                             | P1       |
+| **Changelog links**             | What did a major upgrade change? Generate GitHub Releases / CHANGELOG links from the repository field; optionally fetch release titles                               | P1       |
+| **Doctor mode**                 | Following ncu `--doctor`: upgrade one by one and run the test command, roll back a package on failure, and report which can be upgraded safely                       | P2       |
+| **engines compatibility**       | A new version requires a newer Node / Bun. Compare against the local or configured runtime version and warn if incompatible                                          | P2       |
+| **@types follow their package** | `@types/node` and similar should match the major of the actual runtime / main package instead of blindly going to latest                                             | P2       |
+| **Git integration**             | Require a clean working tree before writing (can be turned off); `--commit` commits per level or group, with the upgraded packages in the message                    | P2       |
+| **Report export**               | `--output json\|markdown`; markdown can be pasted straight into a PR description                                                                                     | P2       |
+| **License change warnings**     | Warn when a new version changes license (e.g. MIT → BSL); important for commercial projects                                                                          | P2       |
+| **Unused dependency detection** | Dependencies in package.json that the code never imports. A lot of work; can come later or delegate to knip                                                          | P3       |
+| **Package size changes**        | How much bigger a dependency gets after upgrading. Useful for front-end projects but needs an extra data source                                                      | P3       |
 
-**更新执行流程**（整合上述功能后）
+**Update flow** (with the features above combined)
 
-1. 扫描文件，读取配置和忽略规则
-2. 并发查询 registry，应用 target、cooldown、分组规则
-3. 检查 peer、engines、废弃、漏洞，收集警告
-4. 显示结果（或进入交互选择）
-5. 备份 → 按 format 写入 package.json，保留原格式
-6. 按需在各项目内 install，可选运行测试和 git commit
+1. Scan files, read config and ignore rules
+2. Query the registry concurrently, apply target, cooldown and group rules
+3. Check peers, engines, deprecations and vulnerabilities, collecting warnings
+4. Show the results (or enter interactive selection)
+5. Back up → write package.json according to format, preserving formatting
+6. Install in each project as needed, optionally run tests and git commit
 
-## 命令与参数设计
+## Commands and flags
 
-子命令保持少而清晰；不带子命令时等同于 `check`，和 ncu 的习惯一致。
+Keep subcommands few and clear; without a subcommand it behaves as `check`, matching ncu's habits.
 
-**子命令**
+**Subcommands**
 
-| 命令                            | 作用                                 |
-| ------------------------------- | ------------------------------------ |
-| `depseek [dir...]` / `check`    | 列出可用更新（只读）                 |
-| `depseek up [pkg[@ver]...]`     | 更新，等同于 `check -u`              |
-| `depseek conflicts`             | 列出版本冲突；`--fix` 统一           |
-| `depseek format --to <fmt>`     | 只改版本写法，不升级                 |
-| `depseek ls [pkg]`              | 某个依赖在哪些项目里、各用什么版本   |
-| `depseek tree [dir...]`         | 按树形结构列出 package.json 所在位置 |
-| `depseek doctor [--test <cmd>]` | 逐个升级并跑测试，失败回退           |
-| `depseek undo`                  | 恢复上一次写入前的状态               |
-| `depseek init`                  | 生成配置文件模板                     |
+| Command                         | Purpose                                                 |
+| ------------------------------- | ------------------------------------------------------- |
+| `depseek [dir...]` / `check`    | List available updates (read-only)                      |
+| `depseek up [pkg[@ver]...]`     | Update, same as `check -u`                              |
+| `depseek conflicts`             | List version conflicts; `--fix` aligns them             |
+| `depseek format --to <fmt>`     | Change the version style only, no upgrade               |
+| `depseek ls [pkg]`              | Which projects use a dependency and at which version    |
+| `depseek tree [dir...]`         | List where each package.json lives, as a tree           |
+| `depseek doctor [--test <cmd>]` | Upgrade one by one and run tests, rolling back failures |
+| `depseek undo`                  | Restore the state before the last write                 |
+| `depseek init`                  | Generate a config file template                         |
 
-**常用参数**
+**Common flags**
 
-| 参数                             | 默认值            | 说明                      |
-| -------------------------------- | ----------------- | ------------------------- |
-| `--recursive` / `--no-recursive` | 递归              | 是否递归扫描              |
-| `--depth <n>`                    | 不限              | 递归深度                  |
-| `--include` / `--exclude <glob>` | —                 | 扫描范围                  |
-| `-u, --upgrade`                  | 关                | 写入文件                  |
-| `-t, --target <t>`               | `latest`          | 目标版本策略              |
-| `--format <f>`                   | `exact`           | 写入格式                  |
-| `-f, --filter` / `-x, --reject`  | —                 | 按包名过滤                |
-| `--dep <types>`                  | 含 packageManager | 依赖类型                  |
-| `--level <levels>`               | 全部              | 只处理指定级别            |
-| `-i, --interactive`              | 关                | 交互选择                  |
-| `--group-by <g>`                 | `package`         | package / project / level |
-| `-c, --cooldown <period>`        | 0                 | 冷却期                    |
-| `--install <mode>`               | `prompt`          | 更新后是否 install        |
-| `--dry-run`                      | 关                | 只显示 diff               |
-| `--theme <name>`                 | `default`         | 颜色主题                  |
-| `--output <fmt>`                 | `table`           | table / json / markdown   |
-| `--error-on <cond>`              | —                 | 用于 CI，见下文           |
-| `--concurrency <n>`              | 16                | registry 并发请求数       |
-| `--no-cache`                     | —                 | 忽略本地缓存              |
-| `--config <path>`                | 自动查找          | 指定配置文件              |
+| Flag                             | Default                 | Description                     |
+| -------------------------------- | ----------------------- | ------------------------------- |
+| `--recursive` / `--no-recursive` | Recursive               | Scan recursively or not         |
+| `--depth <n>`                    | Unlimited               | Recursion depth                 |
+| `--include` / `--exclude <glob>` | —                       | Scan scope                      |
+| `-u, --upgrade`                  | Off                     | Write files                     |
+| `-t, --target <t>`               | `latest`                | Target version strategy         |
+| `--format <f>`                   | `exact`                 | Write style                     |
+| `-f, --filter` / `-x, --reject`  | —                       | Filter by package name          |
+| `--dep <types>`                  | Includes packageManager | Dependency types                |
+| `--level <levels>`               | All                     | Only handle these levels        |
+| `-i, --interactive`              | Off                     | Interactive selection           |
+| `--group-by <g>`                 | `package`               | package / project / level       |
+| `-c, --cooldown <period>`        | 0                       | Cooldown period                 |
+| `--install <mode>`               | `prompt`                | Whether to install after update |
+| `--dry-run`                      | Off                     | Only show the diff              |
+| `--theme <name>`                 | `default`               | Colour theme                    |
+| `--output <fmt>`                 | `table`                 | table / json / markdown         |
+| `--error-on <cond>`              | —                       | For CI, see below               |
+| `--concurrency <n>`              | 16                      | Concurrent registry requests    |
+| `--no-cache`                     | —                       | Ignore the local cache          |
+| `--config <path>`                | Auto-detected           | Config file to use              |
 
-**示例**
+**Examples**
 
 ```bash
-depseek                               # 当前目录递归检查更新
-depseek ~/projects --level patch,minor -u   # 只升 patch 和 minor
-depseek up react@19.0.0 react-dom@19.0.0    # 所有项目升到指定版本
-depseek -i --format caret             # 交互选择，写成 ^x.y.z
+depseek                                     # check for updates recursively from the current directory
+depseek ~/projects --level patch,minor -u   # upgrade patch and minor only
+depseek up react@19.0.0 react-dom@19.0.0    # move every project to a specific version
+depseek -i --format caret                   # pick interactively, write as ^x.y.z
 depseek conflicts --fix --align highest
 depseek format --to exact --from-lock
-depseek tree ~/projects               # 树形列出所有 package.json
+depseek tree ~/projects                     # list every package.json as a tree
 ```
 
-## 实现状态
+## Implementation status
 
-以下为 v0.0.1 的实现情况。
+Implementation status as of v0.0.1.
 
-| 范围                                                                                                                        | 状态 | 说明                                                                          |
-| --------------------------------------------------------------------------------------------------------------------------- | ---- | ----------------------------------------------------------------------------- |
-| 扫描（多目录、递归/深度、默认忽略、.gitignore、include/exclude、符号链接、容错、lock/workspace 识别、摘要、`--list-files`） | ✅   | 默认忽略列表可通过配置 `scan.ignore` 替换，`--no-default-ignore` 关闭         |
-| 树形列出（`depseek tree`、`--list-files --tree`）                                                                           | ✅   |                                                                               |
-| 冲突检测（主版本/次版本/写法/依赖类型/peer 不满足）与 `--fix --align`                                                       | ✅   | peer 不满足基于 `node_modules` 中的已安装版本                                 |
-| 检查更新（级别着色、0.x、prerelease、废弃、变化部分高亮、三种分组、统计）                                                   | ✅   |                                                                               |
-| 颜色主题（default / dark / light / colorblind / mono、自定义颜色、NO_COLOR / FORCE_COLOR）                                  | ✅   |                                                                               |
-| 版本查询（并发、去重、10 分钟缓存、.npmrc / bunfig.toml、私有 scope 与 token）                                              | ✅   |                                                                               |
-| 写入格式（6 种，按依赖类型配置）与目标版本（7 种）                                                                          | ✅   | 复杂范围（`>=1 <2`、`a \|\| b`）在 `preserve` 下改写为 `^`                    |
-| `up pkg@ver`、校验版本存在、`format --to` / `--from-lock`                                                                   | ✅   | `--from-lock` 支持 node_modules、package-lock、bun.lock、pnpm-lock、yarn.lock |
-| 特殊写法处理（workspace/file/link/portal/catalog/git/URL/别名/通配/overrides/packageManager）                               | ✅   | `engines` 字段不作为依赖检查，只用于兼容性警告                                |
-| 过滤（`-f` / `-x` / `--dep` / `--project` / `--level` / `--cooldown`）                                                      | ✅   |                                                                               |
-| 交互模式                                                                                                                    | ✅   |                                                                               |
-| 自动 install、关联包分组、undo、dry-run/diff                                                                                | ✅   |                                                                               |
-| 冷却期、废弃提示、OSV 漏洞检查、忽略与锁定、peer 预检、changelog 链接                                                       | ✅   | changelog 只生成链接，不拉取 release 标题                                     |
-| doctor、engines 检查、@types 跟随、Git 集成、报告导出、许可证变化提醒                                                       | ✅   |                                                                               |
-| 未使用依赖检测、包体积变化（P3）                                                                                            | ⏳   | 未实现，可配合 knip 等工具                                                    |
+| Scope                                                                                                                                                                 | Status | Notes                                                                                                     |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ | --------------------------------------------------------------------------------------------------------- |
+| Scanning (multiple dirs, recursion/depth, default ignores, .gitignore, include/exclude, symlinks, fault tolerance, lock/workspace detection, summary, `--list-files`) | ✅     | The default ignore list can be replaced with the `scan.ignore` config; `--no-default-ignore` turns it off |
+| Tree listing (`depseek tree`, `--list-files --tree`)                                                                                                                  | ✅     |                                                                                                           |
+| Conflict detection (major/minor/style/dependency type/unmet peer) and `--fix --align`                                                                                 | ✅     | Unmet peers are based on the versions installed in `node_modules`                                         |
+| Update check (level colours, 0.x, prerelease, deprecation, changed-part highlight, three groupings, summary)                                                          | ✅     |                                                                                                           |
+| Colour themes (default / dark / light / colorblind / mono, custom colours, NO_COLOR / FORCE_COLOR)                                                                    | ✅     |                                                                                                           |
+| Version lookup (concurrency, dedup, 10-minute cache, .npmrc / bunfig.toml, private scopes and tokens)                                                                 | ✅     |                                                                                                           |
+| Write styles (6, configurable per dependency type) and targets (7)                                                                                                    | ✅     | Complex ranges (`>=1 <2`, `a \|\| b`) are rewritten as `^` under `preserve`                               |
+| `up pkg@ver`, version existence check, `format --to` / `--from-lock`                                                                                                  | ✅     | `--from-lock` supports node_modules, package-lock, bun.lock, pnpm-lock, yarn.lock                         |
+| Special specs (workspace/file/link/portal/catalog/git/URL/alias/wildcard/overrides/packageManager)                                                                    | ✅     | The `engines` field is not checked as a dependency, only used for compatibility warnings                  |
+| Filters (`-f` / `-x` / `--dep` / `--project` / `--level` / `--cooldown`)                                                                                              | ✅     |                                                                                                           |
+| Interactive mode                                                                                                                                                      | ✅     |                                                                                                           |
+| Auto install, related-package groups, undo, dry-run/diff                                                                                                              | ✅     |                                                                                                           |
+| Cooldown, deprecation notices, OSV vulnerability checks, ignore and pin, peer pre-check, changelog links                                                              | ✅     | Changelog only generates links, release titles are not fetched                                            |
+| Doctor, engines checks, @types following, git integration, report export, license change warnings                                                                     | ✅     |                                                                                                           |
+| Unused dependency detection, package size changes (P3)                                                                                                                | ⏳     | Not implemented; use tools such as knip alongside                                                         |

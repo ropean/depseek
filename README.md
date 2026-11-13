@@ -1,76 +1,78 @@
 # depseek
 
-> npm 包名：[`@ropean/depseek`](https://www.npmjs.com/package/@ropean/depseek)，命令名：`depseek`
+English | [简体中文](./README.zh-CN.md)
 
-一次扫描某个目录下所有 `package.json`（不要求是 monorepo），列出**跨项目的版本冲突**和**可用更新**，并按指定的版本写法批量更新。参数、短选项、JSON 输出和 `.ncurc` 配置与 [ncu](https://github.com/raineorshine/npm-check-updates) 兼容，可以直接替换（见[从 ncu 迁移](#从-ncu-迁移)）。
+> npm package: [`@ropean/depseek`](https://www.npmjs.com/package/@ropean/depseek), command: `depseek`
+
+Scan every `package.json` under a directory in one pass (no monorepo required), list **cross-project version conflicts** and **available updates**, and update them in bulk using the version style you choose. Flags, short options, JSON output and `.ncurc` config are compatible with [ncu](https://github.com/raineorshine/npm-check-updates), so it works as a drop-in replacement (see [Migrating from ncu](#migrating-from-ncu)).
 
 [![npm](https://img.shields.io/npm/v/@ropean/depseek.svg)](https://www.npmjs.com/package/@ropean/depseek)
 [![CI](https://github.com/ropean/depseek/actions/workflows/ci.yml/badge.svg)](https://github.com/ropean/depseek/actions/workflows/ci.yml)
 
-- **默认只读**：不加 `-u` 只显示结果，绝不改文件
-- **默认安全**：写入前显示 diff，`--dry-run` 只看 diff；写入要求 git 工作区干净，并总会备份，`depseek undo` 一键恢复
-- **保留原格式**：只替换版本号字符串，缩进、换行符、字段顺序、文件末尾换行全部不变
-- **包管理器无关**：只读写 `package.json`，install 按各项目的 lock 文件调用 bun / pnpm / npm / yarn（没有 lock 时默认 bun）
+- **Read-only by default**: without `-u` it only shows results and never touches a file
+- **Safe by default**: shows a diff before writing, `--dry-run` shows only the diff; writing requires a clean git working tree, always makes a backup, and `depseek undo` restores it in one step
+- **Formatting preserved**: only the version strings are replaced; indentation, line endings, key order and the trailing newline stay as they were
+- **Package-manager agnostic**: only reads and writes `package.json`; install runs bun / pnpm / npm / yarn according to each project's lock file (bun when there is no lock file)
 
-完整需求见 [docs/SPEC.md](./docs/SPEC.md)。
+Full requirements: [docs/SPEC.md](./docs/SPEC.md) ([简体中文](./docs/SPEC.zh-CN.md)).
 
-## 安装
+## Install
 
 ```sh
-npm i -g @ropean/depseek     # 或 pnpm add -g / bun add -g / yarn global add
-npx @ropean/depseek --help   # 不安装直接用（pnpm dlx / bunx 同理）
+npm i -g @ropean/depseek     # or pnpm add -g / bun add -g / yarn global add
+npx @ropean/depseek --help   # run without installing (same for pnpm dlx / bunx)
 ```
 
-安装后有两个命令：`depseek` 和简写 `ds`（完全相同，下文都写 `depseek`）。如果 `ds` 和你机器上其它命令重名，用 `depseek` 即可。
+Two commands are installed: `depseek` and the short alias `ds` (identical; this document uses `depseek`). If `ds` clashes with another command on your machine, just use `depseek`.
 
 ```sh
 ds                 # = depseek
 ds up -i           # = depseek up -i
 ```
 
-需要 Node.js ≥ 22。
+Requires Node.js ≥ 22.
 
-## 快速上手
+## Quick start
 
 ```sh
-depseek                                   # 当前目录递归检查更新（只读）
-depseek tree ~/projects                   # 按树形结构列出 package.json 所在位置
-depseek conflicts                         # 同一依赖在不同项目里版本不一致
-depseek ~/projects --level patch,minor -u # 只升 patch 和 minor
-depseek up react@19.0.0 react-dom@19.0.0  # 所有项目都改成指定版本
-depseek -i --format caret                 # 交互选择，写成 ^x.y.z
-depseek conflicts --fix --align highest   # 对齐到已有的最高版本
-depseek format --to exact --from-lock     # 只改写法：^1.2.3 → 实际安装的 1.2.7
-depseek undo                              # 恢复上一次写入
+depseek                                   # check for updates recursively from the current directory (read-only)
+depseek tree ~/projects                   # list where each package.json lives, as a tree
+depseek conflicts                         # same dependency, different versions across projects
+depseek ~/projects --level patch,minor -u # upgrade patch and minor only
+depseek up react@19.0.0 react-dom@19.0.0  # set a specific version in every project
+depseek -i --format caret                 # pick interactively, write as ^x.y.z
+depseek conflicts --fix --align highest   # align to the highest version already in use
+depseek format --to exact --from-lock     # change the style only: ^1.2.3 → installed 1.2.7
+depseek undo                              # restore the last write
 ```
 
-## 命令
+## Commands
 
-| 命令                                 | 作用                                                       |
-| ------------------------------------ | ---------------------------------------------------------- |
-| `depseek [dir...]` / `check`         | 列出可用更新（只读）；`-u` 写入，`-i` 交互选择             |
-| `depseek up [pkg[@ver]...] [dir...]` | 更新，等同 `check -u`；`pkg@ver` 把所有项目改成该版本/范围 |
-| `depseek conflicts [pkg...]`         | 列出版本冲突；`--fix` 统一                                 |
-| `depseek format --to <fmt>`          | 只改版本写法，不升级；`--from-lock` 用 lock 里的实际版本   |
-| `depseek ls [pkg...]`                | 某个依赖在哪些项目里、各用什么版本（及实际安装版本）       |
-| `depseek tree [dir...]`              | 以目录树显示扫描到的 package.json（名称、lock、依赖数）    |
-| `depseek undo [id] [--list]`         | 恢复上一次（或指定）写入前的状态                           |
-| `depseek doctor [--test <cmd>]`      | 逐个升级 → install → 跑测试，失败的回退，最后报告          |
-| `depseek init`                       | 生成 `depseek.config.json` 模板                            |
-| `depseek -g [-p pm]`                 | 检查全局安装的包（npm / pnpm / yarn / bun），`-u` 直接安装 |
+| Command                              | Purpose                                                                    |
+| ------------------------------------ | -------------------------------------------------------------------------- |
+| `depseek [dir...]` / `check`         | List available updates (read-only); `-u` writes, `-i` picks interactively  |
+| `depseek up [pkg[@ver]...] [dir...]` | Update, same as `check -u`; `pkg@ver` sets that version/range everywhere   |
+| `depseek conflicts [pkg...]`         | List version conflicts; `--fix` aligns them                                |
+| `depseek format --to <fmt>`          | Change the version style only, no upgrade; `--from-lock` uses lock files   |
+| `depseek ls [pkg...]`                | Which projects use a dependency, and at which version (and installed)      |
+| `depseek tree [dir...]`              | Show scanned package.json files as a tree (name, lock, dep count)          |
+| `depseek undo [id] [--list]`         | Restore the state before the last (or a given) write                       |
+| `depseek doctor [--test <cmd>]`      | Upgrade one by one → install → test, roll back failures, then report       |
+| `depseek init`                       | Generate a `depseek.config.json` template                                  |
+| `depseek -g [-p pm]`                 | Check globally installed packages (npm / pnpm / yarn / bun); `-u` installs |
 
-### 扫描范围
+### Scan scope
 
-默认从当前目录递归查找，跳过 `node_modules`、`.git`、`dist`、`build`、`.next`、`.output`、`.wrangler`、`.turbo`、`coverage`、`.cache` 以及 `fixtures`、`templates`、`examples` 等目录，并遵守 `.gitignore`。
+Searches recursively from the current directory by default, skipping `node_modules`, `.git`, `dist`, `build`, `.next`, `.output`, `.wrangler`, `.turbo`, `coverage`, `.cache` as well as `fixtures`, `templates`, `examples` and similar directories, and honours `.gitignore`.
 
 ```sh
-depseek tree                    # 先确认扫描范围
-depseek --list-files            # 只列出文件路径（加 --tree 显示为树）
+depseek tree                    # confirm the scan scope first
+depseek --list-files            # list file paths only (add --tree to show a tree)
 depseek a/ b/ --depth 2 --exclude legacy --include 'apps/**'
 depseek --no-gitignore --no-default-ignore --follow-symlinks
 ```
 
-`depseek tree` 示例输出：
+Sample `depseek tree` output:
 
 ```
 . (5 package.json)  mono  2 deps  [workspace root, private, bun.lock]
@@ -82,9 +84,9 @@ depseek --no-gitignore --no-default-ignore --follow-symlinks
     └── deep/nested/x  x  3 deps
 ```
 
-只有一个子目录的目录链会被合并显示（`deep/nested/x`）；JSON 解析失败的文件以 ✖ 标出，不会中断扫描。`--ascii` 使用 ASCII 画线，`-o json` 输出机器可读的列表。
+Chains of directories with a single child are collapsed (`deep/nested/x`); files that fail to parse are marked with ✖ and do not stop the scan. `--ascii` draws with ASCII characters, `-o json` prints a machine-readable list.
 
-### 检查更新
+### Checking for updates
 
 ```
 express     4.19.2   →  5.3.0   ▲ major  1 month ago   apps/api
@@ -95,33 +97,33 @@ react       ^19.0.0  →  19.3.1  △ minor  4 weeks ago   libs/x, packages/ui
 patch 0 · minor 2 · major 2  in 4 files
 ```
 
-- 同一依赖跨项目合并为一行（`--group-by package`，默认）；`--group-by project` 按文件分块，`--group-by level` 按级别分块
-- 目标版本只对变化的部分着色；`0.x` 的 minor 视为破坏性（major）；prerelease 单独着色
-- 每个级别同时带符号（▲ △ · β），不看颜色也能分辨
-- 底部列出 deprecated 的在用版本、无法检查的依赖（git / URL）、被配置忽略的依赖
-- `--audit` 查询 [OSV](https://osv.dev) 标出已知漏洞及修复版本
+- The same dependency across projects is merged into one line (`--group-by package`, the default); `--group-by project` groups by file, `--group-by level` by level
+- Only the changed part of the target version is coloured; a minor bump on `0.x` counts as breaking (major); prereleases get their own colour
+- Every level also has a symbol (▲ △ · β), so it can be told apart without colour
+- The footer lists deprecated versions in use, dependencies that cannot be checked (git / URL) and dependencies ignored by config
+- `--audit` queries [OSV](https://osv.dev) to flag known vulnerabilities and the versions that fix them
 
-### 写入格式 `--format` 与目标版本 `--target`
+### Write style `--format` and target version `--target`
 
-| `--format`      | 写入       |     | `--target`       | 含义                                 |
-| --------------- | ---------- | --- | ---------------- | ------------------------------------ |
-| `exact`（默认） | `1.4.2`    |     | `latest`（默认） | registry 的 `latest` 标签            |
-| `tilde`         | `~1.4.2`   |     | `minor`          | 不跨主版本                           |
-| `caret`         | `^1.4.2`   |     | `patch`          | 只升 patch                           |
-| `preserve`      | 沿用原前缀 |     | `semver`         | 当前范围允许的最高版（写法保持不变） |
-| `gte`           | `>=1.4.2`  |     | `greatest`       | 最高版本号，包含 prerelease          |
-| `x-range`       | `1.x`      |     | `newest`         | 最近发布的版本                       |
-|                 |            |     | `@<tag>`         | 指定 dist-tag，如 `@next`            |
+| `--format`        | Writes          |     | `--target`         | Meaning                                                    |
+| ----------------- | --------------- | --- | ------------------ | ---------------------------------------------------------- |
+| `exact` (default) | `1.4.2`         |     | `latest` (default) | The registry's `latest` tag                                |
+| `tilde`           | `~1.4.2`        |     | `minor`            | Stay within the current major                              |
+| `caret`           | `^1.4.2`        |     | `patch`            | Patch bumps only                                           |
+| `preserve`        | Keep the prefix |     | `semver`           | Highest version the current range allows (style unchanged) |
+| `gte`             | `>=1.4.2`       |     | `greatest`         | Highest version number, prereleases included               |
+| `x-range`         | `1.x`           |     | `newest`           | Most recently published version                            |
+|                   |                 |     | `@<tag>`           | A specific dist-tag, e.g. `@next`                          |
 
-> **默认写成精确版本**：`^1.2.3` 升级后写成 `1.5.0`，而不是 ncu 那样的 `^1.5.0`。这样 package.json 里写的就是实际测试过的版本，不会因为重新 install 悄悄变化。想保留原来的 `^` / `~`，加 `--format preserve`，或在配置里写 `"format": "preserve"`。当某次更新会去掉 `^` / `~` 且没有指定 `--format` 时，输出底部会提示一行。
+> **Exact versions by default**: after an upgrade `^1.2.3` becomes `1.5.0`, not `^1.5.0` as with ncu. That way package.json records the version you actually tested, and it will not drift silently on a fresh install. To keep the original `^` / `~`, pass `--format preserve` or set `"format": "preserve"` in the config. When an update would drop a `^` / `~` and no `--format` was given, a one-line hint is printed at the bottom of the output.
 >
-> 例外：`packageManager` 字段总是精确版本（`pnpm@^10` 不合法）；`devEngines` 保留原写法（`>=20.0.0` → `>=22.0.0`）；`--target semver` 不改写法。
+> Exceptions: the `packageManager` field is always exact (`pnpm@^10` is invalid); `devEngines` keeps its original style (`>=20.0.0` → `>=22.0.0`); `--target semver` never changes the style.
 
-可以在配置里按依赖类型设置格式：`"format": { "prod": "exact", "peer": "caret" }`。
+The format can be set per dependency type in the config: `"format": { "prod": "exact", "peer": "caret" }`.
 
-特殊写法：`workspace:` / `file:` / `link:` / `portal:` / `catalog:` 跳过；git / URL 列为“无法检查”；`npm:pkg@x` 别名按真实包名查询、写回保留别名；`*` / `latest` 默认跳过（`--pin-wildcards` 改为具体版本）；`overrides` / `resolutions` / `pnpm.overrides` 用 `--dep overrides` 参与；`packageManager` 用 `--dep packageManager` 检查。
+Special specs: `workspace:` / `file:` / `link:` / `portal:` / `catalog:` are skipped; git / URL specs are listed as "cannot check"; `npm:pkg@x` aliases are looked up by the real package name and written back with the alias kept; `*` / `latest` are skipped by default (`--pin-wildcards` turns them into concrete versions); `overrides` / `resolutions` / `pnpm.overrides` are included with `--dep overrides`; `packageManager` is checked with `--dep packageManager`.
 
-### 冲突检测
+### Conflict detection
 
 ```
 react  ● high · major versions differ
@@ -136,92 +138,92 @@ lodash  ℹ hint · dependencies vs devDependencies
 3 dependencies have conflicts, 1 across major versions
 ```
 
-还会根据 `node_modules` 报告已安装包的 **peer 依赖不满足**。`--fix --align highest|lowest|most-used|latest|<version>` 统一版本；默认不跨主版本（每条主版本线各自对齐），`--allow-major` 或 `-i` 逐个确认后才跨。
+It also reports **unmet peer dependencies** of installed packages, based on `node_modules`. `--fix --align highest|lowest|most-used|latest|<version>` aligns versions; by default it never crosses a major version (each major line is aligned on its own), only with `--allow-major` or after confirming each one in `-i`.
 
-### 过滤（check / conflicts / up / format / ls 通用）
+### Filters (shared by check / conflicts / up / format / ls)
 
-| 参数                                    | 说明                                                                                       |
-| --------------------------------------- | ------------------------------------------------------------------------------------------ |
-| `-f, --filter` / `-x, --reject`         | 包名，支持逗号分隔、通配符（`@types/*`）和 `/regex/`                                       |
-| `--dep <types>`                         | `prod,dev,peer,optional,overrides,packageManager`，默认 `prod,dev,optional,packageManager` |
-| `--project <glob>`                      | 只处理路径或 `name` 匹配的 package.json                                                    |
-| `--level <levels>`                      | `patch,minor,major,prerelease`                                                             |
-| `-c, --cooldown <period>`               | 忽略最近发布的版本：`7`（天）、`7d`、`12h`、`30m`（防止升到刚发布就被撤回/投毒的版本）     |
-| `-m, --minimal`                         | 当前范围已经允许的版本不算更新（`^1.2.0` 时不提示 1.5.0）                                  |
-| `--peer` / `--engines-node`             | 只选 peer 依赖兼容 / `engines.node` 覆盖项目要求的版本（不只是警告）                       |
-| `--pre 1`                               | latest / minor / patch 目标也考虑预发布版本                                                |
-| `--filter-version` / `--reject-version` | 按 package.json 里写的版本字符串过滤（列表或 `/regex/`）                                   |
+| Flag                                    | Description                                                                                                                 |
+| --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `-f, --filter` / `-x, --reject`         | Package names; comma-separated, wildcards (`@types/*`) and `/regex/` supported                                              |
+| `--dep <types>`                         | `prod,dev,peer,optional,overrides,packageManager`, default `prod,dev,optional,packageManager`                               |
+| `--project <glob>`                      | Only package.json files whose path or `name` matches                                                                        |
+| `--level <levels>`                      | `patch,minor,major,prerelease`                                                                                              |
+| `-c, --cooldown <period>`               | Ignore recently published versions: `7` (days), `7d`, `12h`, `30m` (avoids versions yanked or poisoned right after release) |
+| `-m, --minimal`                         | A version the current range already allows does not count as an update (`^1.2.0` does not suggest 1.5.0)                    |
+| `--peer` / `--engines-node`             | Only pick versions whose peer deps are compatible / whose `engines.node` covers the project's (not just a warning)          |
+| `--pre 1`                               | Also consider prereleases for the latest / minor / patch targets                                                            |
+| `--filter-version` / `--reject-version` | Filter by the version string written in package.json (list or `/regex/`)                                                    |
 
-### 交互模式 `-i`
+### Interactive mode `-i`
 
-按 major / minor / patch 分组，patch 和 minor 默认勾选。`空格` 勾选、`a` 全选、`p` / `m` / `M` 按级别切换、`/` 搜索、`→` 展开（逐个项目勾选、看警告和 changelog 链接）、`v` / `V` 切换到其他版本、`o` 打开 changelog、`回车` 确认（会显示将修改的依赖数和文件数）。
+Grouped by major / minor / patch, with patch and minor pre-selected. `Space` toggles, `a` selects all, `p` / `m` / `M` toggle by level, `/` searches, `→` expands (pick per project, see warnings and the changelog link), `v` / `V` switch to another version, `o` opens the changelog, `Enter` confirms (showing how many dependencies and files will change).
 
-### 写入之后
+### After writing
 
-- `--install always|prompt|never`（默认 `prompt`）：按每个项目的 lock 文件识别包管理器，workspace 成员在根目录 install，并行执行
-- `--commit`：提交改动的 package.json 和 lock 文件；`--commit=level` 按 patch / minor / major 分批写入、install、提交
-- `--no-git-check`：允许改动有未提交修改的文件（仍会备份）
+- `--install always|prompt|never` (default `prompt`): detects the package manager from each project's lock file, installs workspace members from the workspace root, runs in parallel
+- `--commit`: commits the changed package.json and lock files; `--commit=level` writes, installs and commits in batches by patch / minor / major
+- `--no-git-check`: allows changing files that have uncommitted changes (a backup is still made)
 
-### 写入前的检查
+### Checks before writing
 
-- **关联包一起升级**：内置 `react` + `react-dom`、Vue、Angular、vitest、typescript-eslint 等分组，组内升到同一版本；`groups` 配置自定义
-- **@types 跟随**：`@types/react` 保持与 `react` 同一主版本；`@types/node` 跟随 `runtime.node` / `engines.node`，否则不跨当前主版本
-- **peer 依赖预检**：升级后的版本要求的 peer 不满足、或其他包对它的 peer 要求不满足时警告（`--peer` 改为直接排除这些版本）
-- **发布者变更**：`--owner-changed`（或 `--format ownerChanged`）在目标版本换了 npm 发布账号时警告，首次由该账号发布的会特别标出；`--error-on owner` 用于 CI
-- **engines**：新版本要求更高的 Node / Bun 时警告
-- **许可证变化**：如 MIT → BSL 时警告
-- **已废弃**：目标版本不会选 deprecated 版本；在用的 deprecated 版本会列出
+- **Related packages move together**: built-in groups for `react` + `react-dom`, Vue, Angular, vitest, typescript-eslint and more are upgraded to the same version; customise with the `groups` config
+- **@types follow their package**: `@types/react` stays on the same major as `react`; `@types/node` follows `runtime.node` / `engines.node`, otherwise it does not cross the current major
+- **Peer dependency pre-check**: warns when the upgraded version's peers are not satisfied, or when other packages' peer requirements on it are not (`--peer` excludes such versions instead)
+- **Publisher changes**: `--owner-changed` (or `--format ownerChanged`) warns when the target version was published by a different npm account, with special marking when it is that account's first publish; `--error-on owner` for CI
+- **engines**: warns when the new version requires a newer Node / Bun
+- **License changes**: warns on changes such as MIT → BSL
+- **Deprecated**: deprecated versions are never chosen as targets; deprecated versions in use are listed
 
-## 从 ncu 迁移
+## Migrating from ncu
 
-把 `ncu` 换成 `depseek` 即可：ncu 的长选项（含 camelCase 写法，如 `--errorLevel`）、短选项、`--jsonUpgraded` 等 JSON 输出和 `.ncurc` / `.ncurc.{json,yml,yaml,js,cjs,mjs}` 配置都能直接用。区别是 depseek **默认递归扫描**（相当于 ncu 的 `--deep` / `--workspaces --root`），且默认写成精确版本（见[写入格式](#写入格式---format-与目标版本---target)；`--format preserve` 保留原前缀，与 ncu 一致）。
+Replace `ncu` with `depseek`: ncu's long options (including camelCase spellings such as `--errorLevel`), short options, JSON output such as `--jsonUpgraded`, and `.ncurc` / `.ncurc.{json,yml,yaml,js,cjs,mjs}` config all work as is. The differences: depseek **scans recursively by default** (like ncu's `--deep` / `--workspaces --root`), and writes exact versions by default (see [Write style](#write-style---format-and-target-version---target); `--format preserve` keeps the original prefix, matching ncu).
 
-| ncu                                                                          | depseek                                  | 说明                                                            |
-| ---------------------------------------------------------------------------- | ---------------------------------------- | --------------------------------------------------------------- |
-| `ncu react "/^@types/"`                                                      | 同                                       | 位置参数：不是目录就当作包名过滤                                |
-| `-u` `-i` `-t` `-f` `-x` `--dep`                                             | 同                                       |                                                                 |
-| `-c, --cooldown 7d / 12h`                                                    | 同                                       |                                                                 |
-| `-m, --minimal`                                                              | 同                                       |                                                                 |
-| `-e, --errorLevel 2`                                                         | 同（= `--error-on outdated`）            | 还可以 `--error-on major,deprecated,vulnerable…`                |
-| `-d, --doctor` `--doctorTest` `--doctorInstall`                              | 同（= `depseek doctor`）                 |                                                                 |
-| `-j, --jsonAll` `--jsonDeps` `--jsonUpgraded`                                | 同，单个项目输出对象，多个项目按文件分组 | 和 ncu `--workspaces` 的结构一致                                |
-| `-p, --packageManager bun`                                                   | 同                                       | 强制所有 install 使用该包管理器                                 |
-| `-r, --registry <url>`                                                       | 同                                       | 默认读 `.npmrc` / `bunfig.toml`                                 |
-| `-s, --silent` / `-l, --loglevel`                                            | 同                                       |                                                                 |
-| `--deep` / `-w, --workspaces` / `--root`                                     | 默认行为                                 | `--no-root` 排除 workspace 根                                   |
-| `--workspace <name>` / `--packageFile <glob>`                                | 同                                       | 也可以用 `--project`                                            |
-| `--removeRange`                                                              | 同（= `--format exact`）                 |                                                                 |
-| `--format group,time,repo,ownerChanged…`                                     | 接受；`ownerChanged` = `--owner-changed` | `lines` 暂不支持                                                |
-| `--retry` `--timeout` `--concurrency` `--cacheClear`                         | 同                                       |                                                                 |
-| `-g, --global`（配合 `-p npm\|pnpm\|yarn\|bun`）                             | 同，`-u` / `-i` 直接执行全局安装         | ncu 只打印命令；本地链接（`file:`/`link:`）的全局包会列出并跳过 |
-| `--peer`                                                                     | 同，且对多个包**联合求解**               | 插件和宿主可以一起升到互相兼容的新版本，ncu 会卡在旧版本        |
-| `--enginesNode`                                                              | 同                                       | 没有 `engines.node` 时用配置里的 `runtime.node`                 |
-| `--pre 1`                                                                    | 同                                       |                                                                 |
-| `--filterVersion` / `--rejectVersion`                                        | 同                                       |                                                                 |
-| `--interactiveSelect auto\|none\|patch\|minor\|all`                          | 同                                       |                                                                 |
-| `--dep devEngines`                                                           | 同                                       | 保留原写法（`>=20.0.0` → `>=22.0.0`）                           |
-| `--stdin`、`--packageData`、`--registryType json`、`--mergeConfig`、函数配置 | 不支持，给出明确提示                     |                                                                 |
+| ncu                                                                                 | depseek                                       | Notes                                                                                                |
+| ----------------------------------------------------------------------------------- | --------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `ncu react "/^@types/"`                                                             | Same                                          | Positional args: anything that is not a directory is a package-name filter                           |
+| `-u` `-i` `-t` `-f` `-x` `--dep`                                                    | Same                                          |                                                                                                      |
+| `-c, --cooldown 7d / 12h`                                                           | Same                                          |                                                                                                      |
+| `-m, --minimal`                                                                     | Same                                          |                                                                                                      |
+| `-e, --errorLevel 2`                                                                | Same (= `--error-on outdated`)                | Also `--error-on major,deprecated,vulnerable…`                                                       |
+| `-d, --doctor` `--doctorTest` `--doctorInstall`                                     | Same (= `depseek doctor`)                     |                                                                                                      |
+| `-j, --jsonAll` `--jsonDeps` `--jsonUpgraded`                                       | Same; one object per project, grouped by file | Same structure as ncu `--workspaces`                                                                 |
+| `-p, --packageManager bun`                                                          | Same                                          | Forces every install to use that package manager                                                     |
+| `-r, --registry <url>`                                                              | Same                                          | Reads `.npmrc` / `bunfig.toml` by default                                                            |
+| `-s, --silent` / `-l, --loglevel`                                                   | Same                                          |                                                                                                      |
+| `--deep` / `-w, --workspaces` / `--root`                                            | Default behaviour                             | `--no-root` excludes the workspace root                                                              |
+| `--workspace <name>` / `--packageFile <glob>`                                       | Same                                          | `--project` works too                                                                                |
+| `--removeRange`                                                                     | Same (= `--format exact`)                     |                                                                                                      |
+| `--format group,time,repo,ownerChanged…`                                            | Accepted; `ownerChanged` = `--owner-changed`  | `lines` is not supported yet                                                                         |
+| `--retry` `--timeout` `--concurrency` `--cacheClear`                                | Same                                          |                                                                                                      |
+| `-g, --global` (with `-p npm\|pnpm\|yarn\|bun`)                                     | Same; `-u` / `-i` run the global install      | ncu only prints the command; locally linked (`file:`/`link:`) global packages are listed and skipped |
+| `--peer`                                                                            | Same, and **solved jointly** across packages  | A plugin and its host can move together to compatible new versions; ncu gets stuck on old ones       |
+| `--enginesNode`                                                                     | Same                                          | Falls back to `runtime.node` from the config when there is no `engines.node`                         |
+| `--pre 1`                                                                           | Same                                          |                                                                                                      |
+| `--filterVersion` / `--rejectVersion`                                               | Same                                          |                                                                                                      |
+| `--interactiveSelect auto\|none\|patch\|minor\|all`                                 | Same                                          |                                                                                                      |
+| `--dep devEngines`                                                                  | Same                                          | Keeps the original style (`>=20.0.0` → `>=22.0.0`)                                                   |
+| `--stdin`, `--packageData`, `--registryType json`, `--mergeConfig`, function config | Not supported; a clear message is printed     |                                                                                                      |
 
-**depseek 原来的短选项改成了 ncu 的含义**：分组用 `--group-by`、配置文件用 `--config`、项目过滤用 `--project`、级别用 `--level`、递归用 `--recursive`（都只保留长选项）。
+**depseek's former short options now carry ncu's meaning**: use `--group-by` for grouping, `--config` for the config file, `--project` for project filtering, `--level` for levels and `--recursive` for recursion (long options only).
 
 ## CI
 
 ```sh
-depseek --error-on major,deprecated          # 有 major 更新或用了废弃版本时 exit 1
-depseek conflicts --error-on conflicts       # 有版本冲突时 exit 1
-depseek --error-on vulnerable                # 有已知漏洞（自动开启 --audit）
-depseek -e 2                                 # ncu 写法：有任何可升级时 exit 1
-depseek -o markdown > deps.md                # 直接贴到 PR 描述
+depseek --error-on major,deprecated          # exit 1 on major updates or deprecated versions
+depseek conflicts --error-on conflicts       # exit 1 on version conflicts
+depseek --error-on vulnerable                # known vulnerabilities (enables --audit)
+depseek -e 2                                 # ncu style: exit 1 if anything can be upgraded
+depseek -o markdown > deps.md                # paste straight into a PR description
 depseek -o json | jq '.summary'
 ```
 
-`--error-on` 可选：`outdated`、`major`、`deprecated`、`peer`、`conflicts`、`vulnerable`、`owner`。
+`--error-on` accepts: `outdated`, `major`, `deprecated`, `peer`, `conflicts`, `vulnerable`, `owner`.
 
-## 配置
+## Configuration
 
-`depseek init` 生成 `depseek.config.json`（也支持 `.depseekrc.json`、`.depseekrc`、package.json 的 `"depseek"` 字段，从当前目录向上查找到 git 根目录）。所有 CLI 参数都可以写在配置里，CLI 优先。
+`depseek init` generates `depseek.config.json` (`.depseekrc.json`, `.depseekrc` and a `"depseek"` field in package.json are also supported, searched from the current directory up to the git root). Every CLI flag can be set in the config; the CLI wins.
 
-已有的 `.ncurc*`（当前目录 → git 根目录 → home）也会自动读取，作为 ncu 选项的默认值；不认识或不支持的键会提示后忽略，`--no-ncurc` 关闭。
+Existing `.ncurc*` files (current directory → git root → home) are read automatically as defaults for ncu options; unknown or unsupported keys are reported and ignored, `--no-ncurc` turns this off.
 
 ```jsonc
 {
@@ -230,9 +232,9 @@ depseek -o json | jq '.summary'
   "install": "prompt",
   "theme": { "name": "default", "colors": { "major": "red bold", "minor": "#33" } },
   "scan": { "exclude": ["legacy"] },
-  "ignore": [{ "name": "eslint", "reason": "flat config 迁移中" }],
-  "pin": { "typescript": { "range": "~5.6.0", "reason": "等工具链支持" } },
-  "ignoreVersions": [{ "spec": "vite@6.1.0", "reason": "HMR 有 bug" }],
+  "ignore": [{ "name": "eslint", "reason": "migrating to flat config" }],
+  "pin": { "typescript": { "range": "~5.6.0", "reason": "waiting for toolchain support" } },
+  "ignoreVersions": [{ "spec": "vite@6.1.0", "reason": "HMR bug" }],
   "groups": [["@tanstack/react-query", "@tanstack/react-query-devtools"]],
   "conflicts": {
     "ignore": ["@types/node"],
@@ -246,13 +248,13 @@ depseek -o json | jq '.summary'
 
 ### Registry
 
-读取 `~/.npmrc`、从 git 根目录到当前目录的 `.npmrc` 和 `bunfig.toml`（`[install] registry`、`[install.scopes]`），支持私有 scope 和 `_authToken` / `_auth` / `username` + `_password`，以及 `${ENV}` 变量。`-r, --registry <url>` 临时覆盖默认 registry。同一个包只查询一次，默认 16 并发（`--concurrency`），失败重试 3 次（`--retry`），单个请求超时 60 秒（`--timeout <ms>`），结果缓存 10 分钟（`--no-cache` 强制刷新、`--cache-clear` 清空，`cacheTtl` 配置，`DEPSEEK_CACHE_DIR` 改目录）。
+Reads `~/.npmrc`, plus every `.npmrc` and `bunfig.toml` (`[install] registry`, `[install.scopes]`) from the git root down to the current directory; supports private scopes, `_authToken` / `_auth` / `username` + `_password`, and `${ENV}` variables. `-r, --registry <url>` overrides the default registry for one run. Each package is fetched once, with 16 concurrent requests by default (`--concurrency`), 3 retries (`--retry`), a 60-second timeout per request (`--timeout <ms>`) and a 10-minute result cache (`--no-cache` forces a refresh, `--cache-clear` empties it, `cacheTtl` in the config, `DEPSEEK_CACHE_DIR` changes the directory).
 
-### 颜色主题
+### Colour themes
 
-`--theme default|dark|light|colorblind|mono`。`colorblind` 用蓝/橙配色，`mono` 只用粗体和符号。遵守 `NO_COLOR` / `FORCE_COLOR`，输出到管道或文件时自动关闭颜色。
+`--theme default|dark|light|colorblind|mono`. `colorblind` uses a blue/orange palette, `mono` uses only bold and symbols. Honours `NO_COLOR` / `FORCE_COLOR` and disables colour automatically when writing to a pipe or file.
 
-## 编程接口
+## Programmatic API
 
 ```ts
 import {
@@ -274,9 +276,9 @@ const client = new RegistryClient({ config: loadRegistryConfig(process.cwd()) })
 const { updates } = await analyze(projects, entries, { client, selection, target: 'minor' });
 ```
 
-## 开发
+## Development
 
-见 [DEVELOPMENT.md](./DEVELOPMENT.md)。
+See [DEVELOPMENT.md](./DEVELOPMENT.md) ([简体中文](./DEVELOPMENT.zh-CN.md)).
 
 ## License
 

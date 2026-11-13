@@ -1,8 +1,10 @@
 # depseek
 
+> npm 包名：[`@ropean/depseek`](https://www.npmjs.com/package/@ropean/depseek)，命令名：`depseek`
+
 一次扫描某个目录下所有 `package.json`（不要求是 monorepo），列出**跨项目的版本冲突**和**可用更新**，并按指定的版本写法批量更新。参数、短选项、JSON 输出和 `.ncurc` 配置与 [ncu](https://github.com/raineorshine/npm-check-updates) 兼容，可以直接替换（见[从 ncu 迁移](#从-ncu-迁移)）。
 
-[![npm](https://img.shields.io/npm/v/depseek.svg)](https://www.npmjs.com/package/depseek)
+[![npm](https://img.shields.io/npm/v/@ropean/depseek.svg)](https://www.npmjs.com/package/@ropean/depseek)
 [![CI](https://github.com/ropean/depseek/actions/workflows/ci.yml/badge.svg)](https://github.com/ropean/depseek/actions/workflows/ci.yml)
 
 - **默认只读**：不加 `-u` 只显示结果，绝不改文件
@@ -15,8 +17,8 @@
 ## 安装
 
 ```sh
-npm i -g depseek     # 或 pnpm add -g / bun add -g
-npx depseek --help   # 不安装直接用
+npm i -g @ropean/depseek     # 或 pnpm add -g / bun add -g / yarn global add
+npx @ropean/depseek --help   # 不安装直接用（pnpm dlx / bunx 同理）
 ```
 
 需要 Node.js ≥ 22。
@@ -254,7 +256,7 @@ import {
   loadRegistryConfig,
   buildSelection,
   selectEntries,
-} from 'depseek';
+} from '@ropean/depseek';
 
 const { projects } = await scan({ roots: ['.'] });
 const selection = buildSelection({}, {});

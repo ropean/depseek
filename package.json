@@ -1,5 +1,5 @@
 {
-  "name": "depseek",
+  "name": "@ropean/depseek",
   "version": "0.0.1",
   "description": "Scan every package.json under a directory, find cross-project version conflicts and outdated deps, and update them in one go.",
   "keywords": [
@@ -57,7 +57,7 @@
     "smoke": "node scripts/smoke.mjs",
     "pack:dry": "npm pack --dry-run",
     "link:global": "pnpm link --global",
-    "unlink:global": "pnpm remove --global depseek",
+    "unlink:global": "pnpm remove --global @ropean/depseek",
     "release": "node scripts/release.mjs",
     "release:patch": "node scripts/release.mjs patch",
     "release:minor": "node scripts/release.mjs minor",

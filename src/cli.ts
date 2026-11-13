@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import pkg from '../package.json' with { type: 'json' };
 import { ArgError, parseArgv, type OptSpec } from './args.js';
+import { checkCommand } from './commands/check.js';
 import { initCommand } from './commands/init.js';
 import { treeCommand } from './commands/tree.js';
 import { createContext, type Ctx } from './context.js';
@@ -17,6 +18,21 @@ const OPTIONS: Record<string, OptSpec> = {
   'list-files': { type: 'boolean' },
   tree: { type: 'boolean' },
   ascii: { type: 'boolean' },
+  // checking
+  upgrade: { type: 'boolean', short: 'u' },
+  target: { type: 'string', short: 't' },
+  format: { type: 'string' },
+  filter: { type: 'string', short: 'f', multiple: true },
+  reject: { type: 'string', short: 'x', multiple: true },
+  dep: { type: 'string', multiple: true },
+  project: { type: 'string', short: 'p', multiple: true },
+  level: { type: 'string', short: 'l', multiple: true },
+  cooldown: { type: 'number' },
+  'pin-wildcards': { type: 'boolean' },
+  'group-by': { type: 'string', short: 'g' },
+  'error-on': { type: 'string', multiple: true },
+  concurrency: { type: 'number' },
+  cache: { type: 'boolean' },
   // output
   theme: { type: 'string' },
   output: { type: 'string', short: 'o' },
@@ -34,6 +50,20 @@ const HELP: string = `depseek ${pkg.version} — find version conflicts and upda
 Usage
   depseek [dir...] [options]          check for updates (read-only)
   depseek tree [dir...]               show where package.json files are, as a tree
+
+Checking
+  -t, --target <t>                    latest | minor | patch | semver | greatest | newest | @<tag>
+  --format <f>                        exact | tilde | caret | preserve | gte | x-range (default exact)
+  -f, --filter <p> / -x, --reject <p> package names: list, globs (@types/*) or /regex/
+  --dep <types>                       prod,dev,peer,optional,overrides,packageManager (default prod,dev,optional)
+  -p, --project <glob>                only package.json files whose path or name matches
+  -l, --level <levels>                patch,minor,major,prerelease
+  --cooldown <days>                   ignore versions published in the last N days
+  --pin-wildcards                     also resolve "*", "x" and "latest" to a concrete version
+  -g, --group-by <g>                  package | project | level (default package)
+  --error-on <cond>                   exit 1 on outdated | major | deprecated | peer | conflicts | vulnerable
+  --concurrency <n>                   parallel registry requests (default 16)
+  --no-cache                          ignore the 10-minute metadata cache
 
 Scanning
   -r, --recursive / --no-recursive    recurse into sub-directories (default on)
@@ -84,8 +114,7 @@ async function main(argv: string[]): Promise<number> {
     default:
       if (opts.listFiles) return treeCommand(ctx, positionals, Boolean(opts.tree));
       if (opts.tree) return treeCommand(ctx, positionals, true);
-      ctx.err('Update checking is not implemented yet.');
-      return 1;
+      return checkCommand(ctx, positionals);
   }
 }
 

@@ -76,3 +76,16 @@ describe('renderTree', () => {
     );
   });
 });
+
+describe('treeSummary', () => {
+  it('counts files, workspace layout, dependencies and locks', async () => {
+    const { treeSummary, renderTreeSummary } = await import('./tree.js');
+    const r = await scan({ cwd: fixture(files) });
+    const s = treeSummary(r);
+    expect(s.files).toBe(4);
+    expect(s.invalid).toBe(1);
+    expect(s.workspaceRoots + s.workspaceMembers + s.standalone).toBe(4);
+    expect(s.internal).toBe(2);
+    expect(renderTreeSummary(r, createPainter('mono', {}, false))).toMatch(/^Summary\n  package\.json +4 /);
+  });
+});

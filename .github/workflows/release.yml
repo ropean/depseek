@@ -1,0 +1,104 @@
+# Publishes to npm when a v* tag is pushed (e.g. by `pnpm release patch --ci`).
+# If the version is already on npm (released locally with `pnpm release`), the publish step is skipped.
+#
+# Auth — pick one:
+#   A. Trusted publishing (recommended, no secret): on npmjs.com → package → Settings →
+#      Trusted Publisher → GitHub Actions, repo = <owner>/<repo>, workflow = release.yml.
+#      (The package must exist first: do the very first publish locally.)
+#   B. Token: add an npm "Automation"/granular token as the repo secret NPM_TOKEN.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  # Manual retry for an existing tag (e.g. the tag-push run failed for an infra reason).
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release, e.g. v1.2.3'
+        required: true
+
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write # create the GitHub Release
+  id-token: write # npm trusted publishing + provenance
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.TAG }}
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          cache: pnpm
+      # Trusted publishing needs npm >= 11.5.1
+      - run: npm install -g npm@latest
+      - run: pnpm install --frozen-lockfile
+
+      - name: Verify tag matches package.json
+        id: meta
+        run: |
+          NAME=$(node -p "require('./package.json').name")
+          VERSION=$(node -p "require('./package.json').version")
+          if [ "v$VERSION" != "$TAG" ]; then
+            echo "::error::Tag $TAG does not match package.json version $VERSION"; exit 1
+          fi
+          if [[ "$VERSION" == *-* ]]; then
+            ID=$(echo "$VERSION" | sed -E 's/^[^-]+-([a-zA-Z]+).*/\1/'); [[ "$ID" =~ ^[a-zA-Z]+$ ]] || ID=next
+            echo "tag=$ID" >> "$GITHUB_OUTPUT"; echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=latest" >> "$GITHUB_OUTPUT"; echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+          if npm view "$NAME@$VERSION" version >/dev/null 2>&1; then
+            echo "published=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "published=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - run: pnpm run check
+        if: steps.meta.outputs.published == 'false'
+      - run: node scripts/smoke.mjs --no-build
+        if: steps.meta.outputs.published == 'false'
+
+      - name: Publish
+        if: steps.meta.outputs.published == 'false'
+        run: |
+          NAME=$(node -p "require('./package.json').name"); VERSION=$(node -p "require('./package.json').version")
+          for attempt in 1 2 3; do
+            if npm publish --provenance --access public --tag ${{ steps.meta.outputs.tag }} --ignore-scripts; then exit 0; fi
+            # The upload may have landed even though the client errored — re-check before retrying.
+            for i in 1 2 3 4 5 6; do
+              sleep 10
+              if [ "$(npm view "$NAME@$VERSION" version --prefer-online 2>/dev/null)" = "$VERSION" ]; then
+                echo "$NAME@$VERSION is on npm — treating as published."; exit 0
+              fi
+            done
+            echo "::warning::publish attempt $attempt failed, retrying"
+          done
+          echo "::error::npm publish failed. Common causes: Trusted Publisher not configured (or workflow name mismatch), NPM_TOKEN missing/expired, no publish rights on the scope, version previously unpublished."
+          exit 1
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: GitHub Release
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          # Pull this version's section out of CHANGELOG.md
+          awk -v v="## $TAG " 'index($0, v)==1 {f=1; next} /^## v/ {f=0} f' CHANGELOG.md > notes.md || true
+          [ -s notes.md ] || echo "Release $TAG" > notes.md
+          gh release view "$TAG" >/dev/null 2>&1 || \
+            gh release create "$TAG" --title "$TAG" --notes-file notes.md \
+              $([ "${{ steps.meta.outputs.prerelease }}" = "true" ] && echo --prerelease)
+        env:
+          GH_TOKEN: ${{ github.token }}

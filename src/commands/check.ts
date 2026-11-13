@@ -3,7 +3,7 @@ import { findConflicts } from '../conflicts.js';
 import { selectEntries } from '../select.js';
 import type { Ctx } from '../context.js';
 import { renderUpdates, updatesToJson, updatesToMarkdown, updatesToNcuJson, type GroupBy } from '../render/check.js';
-import { analysisFails, errorOn, prepare, printSummary, runAnalysis } from './shared.js';
+import { analysisFails, errorOn, exactFormatHint, prepare, printSummary, runAnalysis } from './shared.js';
 
 export function getGroupBy(ctx: Ctx): GroupBy {
   const g = (ctx.opts.groupBy as string | undefined) ?? ctx.config.groupBy ?? 'package';
@@ -30,6 +30,8 @@ export async function checkCommand(ctx: Ctx, roots: string[]): Promise<number> {
   if (ctx.opts.output !== 'json' && ctx.opts.output !== 'markdown' && a.updates.length && !ctx.opts.upgrade) {
     ctx.out();
     ctx.out(ctx.painter.paint('dim', 'Run with -u to write, -i to pick interactively, --dry-run to preview the diff.'));
+    const hint = exactFormatHint(ctx, a);
+    if (hint) ctx.out(ctx.painter.paint('hint', hint));
   }
   const why = analysisFails(conds, a);
   if (conds.has('conflicts')) {

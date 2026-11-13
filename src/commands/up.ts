@@ -7,7 +7,15 @@ import { interactiveSelect } from '../interactive.js';
 import { renderUpdates } from '../render/check.js';
 import { applyChanges } from './apply.js';
 import { printAnalysis } from './check.js';
-import { analysisFails, errorOn, parsePackageArgs, prepare, printSummary, runAnalysis } from './shared.js';
+import {
+  analysisFails,
+  errorOn,
+  exactFormatHint,
+  parsePackageArgs,
+  prepare,
+  printSummary,
+  runAnalysis,
+} from './shared.js';
 import { postWrite } from './post.js';
 
 /**
@@ -68,6 +76,11 @@ export async function upCommand(ctx: Ctx, args: string[], fromCheck = false): Pr
   }
   ctx.out();
   if (!a.updates.length) return 0;
+  const hint = exactFormatHint(ctx, a);
+  if (hint) {
+    ctx.out(ctx.painter.paint('hint', hint));
+    ctx.out();
+  }
 
   const code = await writeUpdates(ctx, a.updates, `up ${args.join(' ')}`.trim());
   const why = analysisFails(conds, a);

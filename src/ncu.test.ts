@@ -168,3 +168,20 @@ describe('ncu-compatible CLI', () => {
     expect(readFileSync(join(root, 'web/package.json'), 'utf8')).toContain('"react": "19.1.0"');
   });
 });
+
+describe('exact format hint', () => {
+  it('explains when ^ / ~ ranges become exact versions', async () => {
+    const { exactFormatHint } = await import('./commands/shared.js');
+    const a = {
+      updates: [
+        { entry: { raw: '^1.0.0' }, newRaw: '1.2.0' },
+        { entry: { raw: '1.0.0' }, newRaw: '1.2.0' },
+      ],
+    };
+    const ctx = (opts: object, config: object = {}) => ({ opts, config }) as never;
+    expect(exactFormatHint(ctx({}), a as never)).toMatch(/^Note: 1 range \(\^ \/ ~\) will be written as exact/);
+    expect(exactFormatHint(ctx({ format: 'exact' }), a as never)).toBeUndefined();
+    expect(exactFormatHint(ctx({}, { format: 'exact' }), a as never)).toBeUndefined();
+    expect(exactFormatHint(ctx({}), { updates: [a.updates[1]] } as never)).toBeUndefined();
+  });
+});

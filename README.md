@@ -104,6 +104,10 @@ patch 0 · minor 2 · major 2  in 4 files
 | `x-range`       | `1.x`      |     | `newest`         | 最近发布的版本                       |
 |                 |            |     | `@<tag>`         | 指定 dist-tag，如 `@next`            |
 
+> **默认写成精确版本**：`^1.2.3` 升级后写成 `1.5.0`，而不是 ncu 那样的 `^1.5.0`。这样 package.json 里写的就是实际测试过的版本，不会因为重新 install 悄悄变化。想保留原来的 `^` / `~`，加 `--format preserve`，或在配置里写 `"format": "preserve"`。当某次更新会去掉 `^` / `~` 且没有指定 `--format` 时，输出底部会提示一行。
+>
+> 例外：`packageManager` 字段总是精确版本（`pnpm@^10` 不合法）；`devEngines` 保留原写法（`>=20.0.0` → `>=22.0.0`）；`--target semver` 不改写法。
+
 可以在配置里按依赖类型设置格式：`"format": { "prod": "exact", "peer": "caret" }`。
 
 特殊写法：`workspace:` / `file:` / `link:` / `portal:` / `catalog:` 跳过；git / URL 列为“无法检查”；`npm:pkg@x` 别名按真实包名查询、写回保留别名；`*` / `latest` 默认跳过（`--pin-wildcards` 改为具体版本）；`overrides` / `resolutions` / `pnpm.overrides` 用 `--dep overrides` 参与；`packageManager` 用 `--dep packageManager` 检查。
@@ -161,7 +165,7 @@ lodash  ℹ hint · dependencies vs devDependencies
 
 ## 从 ncu 迁移
 
-把 `ncu` 换成 `depseek` 即可：ncu 的长选项（含 camelCase 写法，如 `--errorLevel`）、短选项、`--jsonUpgraded` 等 JSON 输出和 `.ncurc` / `.ncurc.{json,yml,yaml,js,cjs,mjs}` 配置都能直接用。区别是 depseek **默认递归扫描**（相当于 ncu 的 `--deep` / `--workspaces --root`），且默认写成精确版本（`--format preserve` 保留原前缀，与 ncu 一致）。
+把 `ncu` 换成 `depseek` 即可：ncu 的长选项（含 camelCase 写法，如 `--errorLevel`）、短选项、`--jsonUpgraded` 等 JSON 输出和 `.ncurc` / `.ncurc.{json,yml,yaml,js,cjs,mjs}` 配置都能直接用。区别是 depseek **默认递归扫描**（相当于 ncu 的 `--deep` / `--workspaces --root`），且默认写成精确版本（见[写入格式](#写入格式---format-与目标版本---target)；`--format preserve` 保留原前缀，与 ncu 一致）。
 
 | ncu                                                                          | depseek                                  | 说明                                                            |
 | ---------------------------------------------------------------------------- | ---------------------------------------- | --------------------------------------------------------------- |

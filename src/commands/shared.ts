@@ -148,6 +148,18 @@ export function analysisFails(conds: Set<ErrorOn>, a: Analysis): string[] {
   return why;
 }
 
+/**
+ * depseek writes exact versions by default (ncu keeps ^ / ~). Say so when that drops a range prefix
+ * and no --format / config "format" was chosen.
+ */
+export function exactFormatHint(ctx: Ctx, a: Analysis): string | undefined {
+  if (ctx.opts.format !== undefined || ctx.config.format !== undefined || ctx.opts.target === 'semver')
+    return undefined;
+  const n = a.updates.filter((u) => /^[\^~]/.test(u.entry.raw) && !/^[\^~]/.test(u.newRaw)).length;
+  if (!n) return undefined;
+  return `Note: ${n === 1 ? '1 range' : `${n} ranges`} (^ / ~) will be written as exact versions (depseek's default) — add --format preserve to keep the prefix, or set "format" in the config.`;
+}
+
 export function parsePackageArgs(args: string[]): Map<string, string> {
   const m = new Map<string, string>();
   for (const a of args) {

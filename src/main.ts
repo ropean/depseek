@@ -156,7 +156,8 @@ Writing
   -i, --interactive                   pick updates in a full-screen list
   --interactive-select <s>            preselect auto | none | patch | minor | all (default auto)
   -n, --dry-run                       only print the diff
-  --format <f>                        exact | tilde | caret | preserve | gte | x-range (default exact)
+  --format <f>                        exact | tilde | caret | preserve | gte | x-range
+                                      default exact: ^1.2.3 → 1.5.0 (ncu keeps ^; use preserve for that)
   --remove-range                      same as --format exact
   --no-diff                           don't print the diff before writing
   --install <mode>                    always | prompt | never (default prompt)

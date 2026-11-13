@@ -29,6 +29,8 @@ export interface VersionMeta {
   peerDependenciesMeta?: Record<string, { optional?: boolean }>;
   engines?: Record<string, string>;
   license?: string;
+  /** npm account that published this version (`_npmUser.name`). */
+  publisher?: string;
 }
 
 export interface PackageMeta {
@@ -190,6 +192,8 @@ function trim(doc: Record<string, unknown>): PackageMeta {
     if (m.peerDependenciesMeta) vm.peerDependenciesMeta = m.peerDependenciesMeta as VersionMeta['peerDependenciesMeta'];
     if (m.engines && typeof m.engines === 'object' && !Array.isArray(m.engines))
       vm.engines = m.engines as Record<string, string>;
+    const npmUser = m._npmUser as { name?: unknown } | undefined;
+    if (npmUser && typeof npmUser.name === 'string') vm.publisher = npmUser.name;
     const lic = m.license;
     if (typeof lic === 'string') vm.license = lic;
     else if (lic && typeof lic === 'object' && typeof (lic as { type?: unknown }).type === 'string')
@@ -219,6 +223,10 @@ export interface RegistryClientOptions {
   cacheTtl?: number;
   useCache?: boolean;
   fetch?: typeof fetch;
+  /** Retries after the first attempt (default 2, i.e. 3 attempts). */
+  retries?: number;
+  /** Per-request timeout in ms (default 60000). */
+  timeout?: number;
 }
 
 export class RegistryError extends Error {
@@ -238,7 +246,8 @@ export class RegistryClient {
   }
 
   private cacheFile(url: string): string {
-    return join(this.dir, `${createHash('sha1').update(url).digest('hex')}.json`);
+    // "v2": cached documents carry the publisher of each version.
+    return join(this.dir, `${createHash('sha1').update(`v2:${url}`).digest('hex')}.json`);
   }
 
   get(name: string): Promise<PackageMeta> {
@@ -288,9 +297,10 @@ export class RegistryClient {
     const doFetch = this.opts.fetch ?? fetch;
     let res: Response | undefined;
     let lastErr: unknown;
-    for (let attempt = 0; attempt < 3; attempt++) {
+    const attempts = Math.max(1, (this.opts.retries ?? 2) + 1);
+    for (let attempt = 0; attempt < attempts; attempt++) {
       try {
-        res = await doFetch(url, { headers, signal: AbortSignal.timeout(60_000) });
+        res = await doFetch(url, { headers, signal: AbortSignal.timeout(this.opts.timeout ?? 60_000) });
         if (res.status < 500 && res.status !== 429) break;
       } catch (e) {
         lastErr = e;

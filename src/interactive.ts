@@ -67,9 +67,23 @@ function rowLevel(r: Row): Level {
   return order.find((l) => lv.includes(l)) ?? 'patch';
 }
 
-const DEFAULT_ON: ReadonlySet<Level> = new Set(['patch', 'minor']);
+/** ncu --interactiveSelect: which updates start out checked. */
+export function preselected(u: Update, mode = 'auto'): boolean {
+  switch (mode) {
+    case 'none':
+      return false;
+    case 'all':
+      return true;
+    case 'patch':
+      return u.level === 'patch' && !u.zero;
+    case 'minor':
+    case 'auto':
+    default:
+      return (u.level === 'patch' || u.level === 'minor') && !u.zero;
+  }
+}
 
-function buildRows(a: Analysis): Row[] {
+function buildRows(a: Analysis, mode?: string): Row[] {
   const byName = new Map<string, Update[]>();
   for (const u of a.updates) {
     const key = `${u.name}\0${u.target}`;
@@ -84,7 +98,7 @@ function buildRows(a: Analysis): Row[] {
       meta,
       versions: alternatives(meta, ups),
       vi: 0,
-      items: ups.map((u) => ({ base: u, current: u, checked: DEFAULT_ON.has(u.level) && !u.zero })),
+      items: ups.map((u) => ({ base: u, current: u, checked: preselected(u, mode) })),
       expanded: false,
     });
   }
@@ -110,7 +124,7 @@ function openUrl(url: string): void {
 /** Full-screen picker. Resolves to the chosen updates, or undefined when cancelled. */
 export function interactiveSelect(ctx: Ctx, a: Analysis): Promise<Update[] | undefined> {
   const { paint, style } = ctx.painter;
-  const rows = buildRows(a);
+  const rows = buildRows(a, ctx.opts.interactiveSelect as string | undefined);
   if (!rows.length) return Promise.resolve([]);
   const stdin = process.stdin;
   const out = process.stdout;

@@ -19,9 +19,20 @@ export const LOCK_FILES: [string, PackageManager][] = [
   ['npm-shrinkwrap.json', 'npm'],
 ];
 
-export type DepKind = 'prod' | 'dev' | 'peer' | 'optional' | 'overrides' | 'packageManager';
-export const DEP_KINDS: readonly DepKind[] = ['prod', 'dev', 'peer', 'optional', 'overrides', 'packageManager'];
-export const DEFAULT_DEP_KINDS: readonly DepKind[] = ['prod', 'dev', 'optional'];
+export type DepKind = 'prod' | 'dev' | 'peer' | 'optional' | 'overrides' | 'packageManager' | 'devEngines';
+export const DEP_KINDS: readonly DepKind[] = [
+  'prod',
+  'dev',
+  'peer',
+  'optional',
+  'overrides',
+  'packageManager',
+  'devEngines',
+];
+
+/** packageManager / devEngines entries: tool versions, not installable dependencies. */
+export const isTool = (kind: DepKind): boolean => kind === 'packageManager' || kind === 'devEngines';
+export const DEFAULT_DEP_KINDS: readonly DepKind[] = ['prod', 'dev', 'optional', 'packageManager'];
 
 export interface Project {
   /** Absolute path to package.json. */
@@ -139,6 +150,30 @@ export function extractDeps(project: Project): DepEntry[] {
         spec,
         encode: (v) => `${m[1]}@${v}`,
       });
+    }
+  }
+  // devEngines.runtime / devEngines.packageManager: { name, version } or a list of them.
+  const de = json.devEngines;
+  if (isObj(de)) {
+    for (const field of ['runtime', 'packageManager']) {
+      const v = de[field];
+      const items: [unknown, string[]][] = Array.isArray(v)
+        ? v.map((x, i) => [x, [String(i)]])
+        : v !== undefined
+          ? [[v, []]]
+          : [];
+      for (const [item, idx] of items) {
+        if (!isObj(item) || typeof item.name !== 'string' || typeof item.version !== 'string') continue;
+        out.push({
+          project,
+          kind: 'devEngines',
+          section: `devEngines.${field}`,
+          path: ['devEngines', field, ...idx, 'version'],
+          name: item.name,
+          raw: item.version,
+          spec: parseSpec(item.version),
+        });
+      }
     }
   }
   return out;

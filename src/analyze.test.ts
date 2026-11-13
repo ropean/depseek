@@ -125,8 +125,68 @@ describe('analyze', () => {
   });
 
   it('warns about peer dependencies before writing', async () => {
-    const a = await run({ explicit: new Map([['react-dom', '19.0.0']]) });
+    const a = await run({ explicit: new Map([['react-dom', '19.0.0']]), builtinGroups: false });
     const u = a.updates.find((x) => x.name === 'react-dom')!;
     expect(u.warnings.find((w) => w.type === 'peer')?.message).toMatch(/wants react@\^19\.0\.0/);
+  });
+
+  it('brings group members along with an explicit version', async () => {
+    const a = await run({ explicit: new Map([['react-dom', '19.0.0']]) });
+    const byKey = Object.fromEntries(a.updates.map((u) => [`${u.entry.project.name}:${u.name}`, u]));
+    expect(byKey['a:react-dom']?.newRaw).toBe('19.0.0');
+    expect(byKey['a:react']?.newRaw).toBe('19.0.0');
+    expect(byKey['a:react']?.warnings.some((w) => w.type === 'group')).toBe(true);
+    expect(byKey['a:react-dom']?.warnings.some((w) => w.type === 'peer')).toBe(false);
+    expect(byKey['b:react']).toBeUndefined(); // no react-dom in b, nothing to align
+    expect(a.updates.some((u) => u.name === 'zod')).toBe(false);
+  });
+});
+
+describe('analyze: runtime-less @types/node and overrides', () => {
+  const extraDocs = {
+    '@types/node': packument('@types/node', { '24.1.0': {}, '24.1.5': {}, '24.9.0': {}, '26.0.0': {} }),
+    hono: packument('hono', { '4.1.0': {}, '4.2.0': {} }),
+  };
+  const files = {
+    'package.json': {
+      name: 'root',
+      workspaces: ['app'],
+      devDependencies: { '@types/node': '24.1.0' },
+      overrides: { hono: '4.1.0' },
+    },
+    'app/package.json': { name: 'app', dependencies: { hono: '4.1.0' } },
+  };
+  async function run(extra: Record<string, unknown> = {}, opts: OptValues = {}) {
+    const root = fixture(files);
+    const r = await scan({ cwd: root });
+    const selection = buildSelection(opts, {});
+    const c = new RegistryClient({
+      config: { registry: 'https://r.test/', scopes: {}, auth: [] },
+      useCache: false,
+      fetch: fakeFetch(extraDocs),
+    });
+    return analyze(r.projects, selectEntries(r.projects, selection), { client: c, selection, ...extra });
+  }
+
+  it('keeps @types/node on its major but lets the minor move', async () => {
+    const a = await run();
+    const u = a.updates.find((x) => x.name === '@types/node')!;
+    expect(u.target).toBe('24.9.0');
+    expect(u.warnings.find((w) => w.type === 'types')?.message).toMatch(/held at 24\.x to match the current major/);
+  });
+
+  it('follows runtime.node minor when the runtime is known', async () => {
+    const a = await run({ runtime: { node: '24.1.3' } });
+    expect(a.updates.find((x) => x.name === '@types/node')?.target).toBe('24.1.5');
+  });
+
+  it('warns when an override in the workspace root pins the dependency', async () => {
+    const a = await run();
+    const u = a.updates.find((x) => x.name === 'hono')!;
+    expect(u.warnings.find((w) => w.type === 'override')?.message).toMatch(
+      /overrides in package\.json pins hono@4\.1\.0/,
+    );
+    const b = await run({}, { dep: 'prod,dev,overrides' });
+    expect(b.updates.find((x) => x.name === 'hono' && x.entry.kind === 'prod')?.warnings).toEqual([]);
   });
 });

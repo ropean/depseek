@@ -36,6 +36,10 @@ export interface CandidateOptions {
   pin?: string;
   /** Allow deprecated versions as targets. */
   allowDeprecated?: boolean;
+  /** Extra predicate (ncu --peer / --enginesNode). */
+  accept?: (version: string) => boolean;
+  /** Prereleases count for latest / minor / patch (ncu --pre). */
+  pre?: boolean;
 }
 
 export function candidates(meta: PackageMeta, opts: CandidateOptions = {}): string[] {
@@ -46,6 +50,7 @@ export function candidates(meta: PackageMeta, opts: CandidateOptions = {}): stri
     if (!opts.allowDeprecated && meta.versions[v]!.deprecated) return false;
     if (opts.exclude?.(v)) return false;
     if (opts.pin && !semver.satisfies(v, opts.pin, { includePrerelease: true })) return false;
+    if (opts.accept && !opts.accept(v)) return false;
     if (cutoff !== undefined) {
       const t = Date.parse(meta.time[v] ?? '');
       if (!Number.isNaN(t) && t > cutoff) return false;
@@ -55,7 +60,7 @@ export function candidates(meta: PackageMeta, opts: CandidateOptions = {}): stri
 }
 
 const maxOf = (vs: string[]): string | undefined => (vs.length ? semver.rsort([...vs])[0] : undefined);
-const stable = (vs: string[]): string[] => vs.filter((v) => !semver.prerelease(v));
+const stableOnly = (vs: string[]): string[] => vs.filter((v) => !semver.prerelease(v));
 
 /**
  * Pick the version to upgrade to. `current` is the lowest version allowed by the current range;
@@ -71,6 +76,8 @@ export function pickTarget(
 ): string | undefined {
   const all = candidates(meta, opts);
   const cur = current ? semver.parse(current) : null;
+  const stable = opts.pre ? (vs: string[]) => vs : stableOnly;
+  if (opts.pre && strategy === 'latest') strategy = 'greatest';
   let target: string | undefined;
 
   if (strategy.startsWith('@')) {

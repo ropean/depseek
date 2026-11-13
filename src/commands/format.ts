@@ -1,3 +1,4 @@
+import { isTool } from '../project.js';
 import type { Ctx } from '../context.js';
 import { resolvedInstalled } from '../lock.js';
 import { selectEntries } from '../select.js';
@@ -23,7 +24,7 @@ export async function formatCommand(ctx: Ctx, roots: string[]): Promise<number> 
   const changes: Change[] = [];
   const skipped: string[] = [];
   for (const e of selectEntries(prep.result.projects, prep.selection)) {
-    if (prep.selection.ignored(e.name) || e.kind === 'packageManager') continue;
+    if (prep.selection.ignored(e.name) || isTool(e.kind)) continue;
     const s = e.spec;
     if (s.kind !== 'range' || !s.base) continue;
     let version = s.base;

@@ -7,18 +7,27 @@ import { interactiveSelect } from '../interactive.js';
 import { renderUpdates } from '../render/check.js';
 import { applyChanges } from './apply.js';
 import { printAnalysis } from './check.js';
-import { analysisFails, errorOn, parsePackageArgs, prepare, printSummary, runAnalysis } from './shared.js';
+import {
+  analysisFails,
+  errorOn,
+  exactFormatHint,
+  parsePackageArgs,
+  prepare,
+  printSummary,
+  runAnalysis,
+} from './shared.js';
 import { postWrite } from './post.js';
 
 /**
  * Split `up` positionals into directories and package specs. Paths (./x, /x, ~/x, a/b) and
  * existing directories holding a package.json are directories; everything else is a package.
  */
-export function splitDirsAndPackages(ctx: Ctx, args: string[]): { dirs: string[]; packages: string[] } {
+export function splitDirsAndPackages(ctx: Ctx | string, args: string[]): { dirs: string[]; packages: string[] } {
+  const cwd = typeof ctx === 'string' ? ctx : ctx.cwd;
   const dirs: string[] = [];
   const packages: string[] = [];
   for (const a of args) {
-    const abs = resolve(ctx.cwd, a);
+    const abs = resolve(cwd, a);
     const isDir = existsSync(abs) && statSync(abs).isDirectory();
     const looksLikePath = /^(\.|\/|~|[A-Za-z]:[\\/])/.test(a) || (a.includes('/') && !a.startsWith('@'));
     if (isDir && (looksLikePath || existsSync(join(abs, 'package.json')))) dirs.push(a);
@@ -67,6 +76,11 @@ export async function upCommand(ctx: Ctx, args: string[], fromCheck = false): Pr
   }
   ctx.out();
   if (!a.updates.length) return 0;
+  const hint = exactFormatHint(ctx, a);
+  if (hint) {
+    ctx.out(ctx.painter.paint('hint', hint));
+    ctx.out();
+  }
 
   const code = await writeUpdates(ctx, a.updates, `up ${args.join(' ')}`.trim());
   const why = analysisFails(conds, a);

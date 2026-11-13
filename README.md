@@ -1,8 +1,10 @@
 # depseek
 
-一次扫描某个目录下所有 `package.json`（不要求是 monorepo），列出**跨项目的版本冲突**和**可用更新**，并按指定的版本写法批量更新。交互方式参考 [ncu](https://github.com/raineorshine/npm-check-updates)，常用参数同名。
+> npm 包名：[`@ropean/depseek`](https://www.npmjs.com/package/@ropean/depseek)，命令名：`depseek`
 
-[![npm](https://img.shields.io/npm/v/depseek.svg)](https://www.npmjs.com/package/depseek)
+一次扫描某个目录下所有 `package.json`（不要求是 monorepo），列出**跨项目的版本冲突**和**可用更新**，并按指定的版本写法批量更新。参数、短选项、JSON 输出和 `.ncurc` 配置与 [ncu](https://github.com/raineorshine/npm-check-updates) 兼容，可以直接替换（见[从 ncu 迁移](#从-ncu-迁移)）。
+
+[![npm](https://img.shields.io/npm/v/@ropean/depseek.svg)](https://www.npmjs.com/package/@ropean/depseek)
 [![CI](https://github.com/ropean/depseek/actions/workflows/ci.yml/badge.svg)](https://github.com/ropean/depseek/actions/workflows/ci.yml)
 
 - **默认只读**：不加 `-u` 只显示结果，绝不改文件
@@ -15,8 +17,15 @@
 ## 安装
 
 ```sh
-npm i -g depseek     # 或 pnpm add -g / bun add -g
-npx depseek --help   # 不安装直接用
+npm i -g @ropean/depseek     # 或 pnpm add -g / bun add -g / yarn global add
+npx @ropean/depseek --help   # 不安装直接用（pnpm dlx / bunx 同理）
+```
+
+安装后有两个命令：`depseek` 和简写 `ds`（完全相同，下文都写 `depseek`）。如果 `ds` 和你机器上其它命令重名，用 `depseek` 即可。
+
+```sh
+ds                 # = depseek
+ds up -i           # = depseek up -i
 ```
 
 需要 Node.js ≥ 22。
@@ -48,6 +57,7 @@ depseek undo                              # 恢复上一次写入
 | `depseek undo [id] [--list]`         | 恢复上一次（或指定）写入前的状态                           |
 | `depseek doctor [--test <cmd>]`      | 逐个升级 → install → 跑测试，失败的回退，最后报告          |
 | `depseek init`                       | 生成 `depseek.config.json` 模板                            |
+| `depseek -g [-p pm]`                 | 检查全局安装的包（npm / pnpm / yarn / bun），`-u` 直接安装 |
 
 ### 扫描范围
 
@@ -85,7 +95,7 @@ react       ^19.0.0  →  19.3.1  △ minor  4 weeks ago   libs/x, packages/ui
 patch 0 · minor 2 · major 2  in 4 files
 ```
 
-- 同一依赖跨项目合并为一行（`-g package`，默认）；`-g project` 按文件分块，`-g level` 按级别分块
+- 同一依赖跨项目合并为一行（`--group-by package`，默认）；`--group-by project` 按文件分块，`--group-by level` 按级别分块
 - 目标版本只对变化的部分着色；`0.x` 的 minor 视为破坏性（major）；prerelease 单独着色
 - 每个级别同时带符号（▲ △ · β），不看颜色也能分辨
 - 底部列出 deprecated 的在用版本、无法检查的依赖（git / URL）、被配置忽略的依赖
@@ -102,6 +112,10 @@ patch 0 · minor 2 · major 2  in 4 files
 | `gte`           | `>=1.4.2`  |     | `greatest`       | 最高版本号，包含 prerelease          |
 | `x-range`       | `1.x`      |     | `newest`         | 最近发布的版本                       |
 |                 |            |     | `@<tag>`         | 指定 dist-tag，如 `@next`            |
+
+> **默认写成精确版本**：`^1.2.3` 升级后写成 `1.5.0`，而不是 ncu 那样的 `^1.5.0`。这样 package.json 里写的就是实际测试过的版本，不会因为重新 install 悄悄变化。想保留原来的 `^` / `~`，加 `--format preserve`，或在配置里写 `"format": "preserve"`。当某次更新会去掉 `^` / `~` 且没有指定 `--format` 时，输出底部会提示一行。
+>
+> 例外：`packageManager` 字段总是精确版本（`pnpm@^10` 不合法）；`devEngines` 保留原写法（`>=20.0.0` → `>=22.0.0`）；`--target semver` 不改写法。
 
 可以在配置里按依赖类型设置格式：`"format": { "prod": "exact", "peer": "caret" }`。
 
@@ -126,13 +140,17 @@ lodash  ℹ hint · dependencies vs devDependencies
 
 ### 过滤（check / conflicts / up / format / ls 通用）
 
-| 参数                            | 说明                                                                        |
-| ------------------------------- | --------------------------------------------------------------------------- |
-| `-f, --filter` / `-x, --reject` | 包名，支持逗号分隔、通配符（`@types/*`）和 `/regex/`                        |
-| `--dep <types>`                 | `prod,dev,peer,optional,overrides,packageManager`，默认 `prod,dev,optional` |
-| `-p, --project <glob>`          | 只处理路径或 `name` 匹配的 package.json                                     |
-| `-l, --level <levels>`          | `patch,minor,major,prerelease`                                              |
-| `--cooldown <days>`             | 忽略 N 天内发布的版本（防止升到刚发布就被撤回/投毒的版本）                  |
+| 参数                                    | 说明                                                                                       |
+| --------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `-f, --filter` / `-x, --reject`         | 包名，支持逗号分隔、通配符（`@types/*`）和 `/regex/`                                       |
+| `--dep <types>`                         | `prod,dev,peer,optional,overrides,packageManager`，默认 `prod,dev,optional,packageManager` |
+| `--project <glob>`                      | 只处理路径或 `name` 匹配的 package.json                                                    |
+| `--level <levels>`                      | `patch,minor,major,prerelease`                                                             |
+| `-c, --cooldown <period>`               | 忽略最近发布的版本：`7`（天）、`7d`、`12h`、`30m`（防止升到刚发布就被撤回/投毒的版本）     |
+| `-m, --minimal`                         | 当前范围已经允许的版本不算更新（`^1.2.0` 时不提示 1.5.0）                                  |
+| `--peer` / `--engines-node`             | 只选 peer 依赖兼容 / `engines.node` 覆盖项目要求的版本（不只是警告）                       |
+| `--pre 1`                               | latest / minor / patch 目标也考虑预发布版本                                                |
+| `--filter-version` / `--reject-version` | 按 package.json 里写的版本字符串过滤（列表或 `/regex/`）                                   |
 
 ### 交互模式 `-i`
 
@@ -148,10 +166,43 @@ lodash  ℹ hint · dependencies vs devDependencies
 
 - **关联包一起升级**：内置 `react` + `react-dom`、Vue、Angular、vitest、typescript-eslint 等分组，组内升到同一版本；`groups` 配置自定义
 - **@types 跟随**：`@types/react` 保持与 `react` 同一主版本；`@types/node` 跟随 `runtime.node` / `engines.node`，否则不跨当前主版本
-- **peer 依赖预检**：升级后的版本要求的 peer 不满足、或其他包对它的 peer 要求不满足时警告
+- **peer 依赖预检**：升级后的版本要求的 peer 不满足、或其他包对它的 peer 要求不满足时警告（`--peer` 改为直接排除这些版本）
+- **发布者变更**：`--owner-changed`（或 `--format ownerChanged`）在目标版本换了 npm 发布账号时警告，首次由该账号发布的会特别标出；`--error-on owner` 用于 CI
 - **engines**：新版本要求更高的 Node / Bun 时警告
 - **许可证变化**：如 MIT → BSL 时警告
 - **已废弃**：目标版本不会选 deprecated 版本；在用的 deprecated 版本会列出
+
+## 从 ncu 迁移
+
+把 `ncu` 换成 `depseek` 即可：ncu 的长选项（含 camelCase 写法，如 `--errorLevel`）、短选项、`--jsonUpgraded` 等 JSON 输出和 `.ncurc` / `.ncurc.{json,yml,yaml,js,cjs,mjs}` 配置都能直接用。区别是 depseek **默认递归扫描**（相当于 ncu 的 `--deep` / `--workspaces --root`），且默认写成精确版本（见[写入格式](#写入格式---format-与目标版本---target)；`--format preserve` 保留原前缀，与 ncu 一致）。
+
+| ncu                                                                          | depseek                                  | 说明                                                            |
+| ---------------------------------------------------------------------------- | ---------------------------------------- | --------------------------------------------------------------- |
+| `ncu react "/^@types/"`                                                      | 同                                       | 位置参数：不是目录就当作包名过滤                                |
+| `-u` `-i` `-t` `-f` `-x` `--dep`                                             | 同                                       |                                                                 |
+| `-c, --cooldown 7d / 12h`                                                    | 同                                       |                                                                 |
+| `-m, --minimal`                                                              | 同                                       |                                                                 |
+| `-e, --errorLevel 2`                                                         | 同（= `--error-on outdated`）            | 还可以 `--error-on major,deprecated,vulnerable…`                |
+| `-d, --doctor` `--doctorTest` `--doctorInstall`                              | 同（= `depseek doctor`）                 |                                                                 |
+| `-j, --jsonAll` `--jsonDeps` `--jsonUpgraded`                                | 同，单个项目输出对象，多个项目按文件分组 | 和 ncu `--workspaces` 的结构一致                                |
+| `-p, --packageManager bun`                                                   | 同                                       | 强制所有 install 使用该包管理器                                 |
+| `-r, --registry <url>`                                                       | 同                                       | 默认读 `.npmrc` / `bunfig.toml`                                 |
+| `-s, --silent` / `-l, --loglevel`                                            | 同                                       |                                                                 |
+| `--deep` / `-w, --workspaces` / `--root`                                     | 默认行为                                 | `--no-root` 排除 workspace 根                                   |
+| `--workspace <name>` / `--packageFile <glob>`                                | 同                                       | 也可以用 `--project`                                            |
+| `--removeRange`                                                              | 同（= `--format exact`）                 |                                                                 |
+| `--format group,time,repo,ownerChanged…`                                     | 接受；`ownerChanged` = `--owner-changed` | `lines` 暂不支持                                                |
+| `--retry` `--timeout` `--concurrency` `--cacheClear`                         | 同                                       |                                                                 |
+| `-g, --global`（配合 `-p npm\|pnpm\|yarn\|bun`）                             | 同，`-u` / `-i` 直接执行全局安装         | ncu 只打印命令；本地链接（`file:`/`link:`）的全局包会列出并跳过 |
+| `--peer`                                                                     | 同，且对多个包**联合求解**               | 插件和宿主可以一起升到互相兼容的新版本，ncu 会卡在旧版本        |
+| `--enginesNode`                                                              | 同                                       | 没有 `engines.node` 时用配置里的 `runtime.node`                 |
+| `--pre 1`                                                                    | 同                                       |                                                                 |
+| `--filterVersion` / `--rejectVersion`                                        | 同                                       |                                                                 |
+| `--interactiveSelect auto\|none\|patch\|minor\|all`                          | 同                                       |                                                                 |
+| `--dep devEngines`                                                           | 同                                       | 保留原写法（`>=20.0.0` → `>=22.0.0`）                           |
+| `--stdin`、`--packageData`、`--registryType json`、`--mergeConfig`、函数配置 | 不支持，给出明确提示                     |                                                                 |
+
+**depseek 原来的短选项改成了 ncu 的含义**：分组用 `--group-by`、配置文件用 `--config`、项目过滤用 `--project`、级别用 `--level`、递归用 `--recursive`（都只保留长选项）。
 
 ## CI
 
@@ -159,15 +210,18 @@ lodash  ℹ hint · dependencies vs devDependencies
 depseek --error-on major,deprecated          # 有 major 更新或用了废弃版本时 exit 1
 depseek conflicts --error-on conflicts       # 有版本冲突时 exit 1
 depseek --error-on vulnerable                # 有已知漏洞（自动开启 --audit）
+depseek -e 2                                 # ncu 写法：有任何可升级时 exit 1
 depseek -o markdown > deps.md                # 直接贴到 PR 描述
 depseek -o json | jq '.summary'
 ```
 
-`--error-on` 可选：`outdated`、`major`、`deprecated`、`peer`、`conflicts`、`vulnerable`。
+`--error-on` 可选：`outdated`、`major`、`deprecated`、`peer`、`conflicts`、`vulnerable`、`owner`。
 
 ## 配置
 
 `depseek init` 生成 `depseek.config.json`（也支持 `.depseekrc.json`、`.depseekrc`、package.json 的 `"depseek"` 字段，从当前目录向上查找到 git 根目录）。所有 CLI 参数都可以写在配置里，CLI 优先。
+
+已有的 `.ncurc*`（当前目录 → git 根目录 → home）也会自动读取，作为 ncu 选项的默认值；不认识或不支持的键会提示后忽略，`--no-ncurc` 关闭。
 
 ```jsonc
 {
@@ -192,7 +246,7 @@ depseek -o json | jq '.summary'
 
 ### Registry
 
-读取 `~/.npmrc`、从 git 根目录到当前目录的 `.npmrc` 和 `bunfig.toml`（`[install] registry`、`[install.scopes]`），支持私有 scope 和 `_authToken` / `_auth` / `username` + `_password`，以及 `${ENV}` 变量。同一个包只查询一次，默认 16 并发（`--concurrency`），结果缓存 10 分钟（`--no-cache` 强制刷新，`cacheTtl` 配置，`DEPSEEK_CACHE_DIR` 改目录）。
+读取 `~/.npmrc`、从 git 根目录到当前目录的 `.npmrc` 和 `bunfig.toml`（`[install] registry`、`[install.scopes]`），支持私有 scope 和 `_authToken` / `_auth` / `username` + `_password`，以及 `${ENV}` 变量。`-r, --registry <url>` 临时覆盖默认 registry。同一个包只查询一次，默认 16 并发（`--concurrency`），失败重试 3 次（`--retry`），单个请求超时 60 秒（`--timeout <ms>`），结果缓存 10 分钟（`--no-cache` 强制刷新、`--cache-clear` 清空，`cacheTtl` 配置，`DEPSEEK_CACHE_DIR` 改目录）。
 
 ### 颜色主题
 
@@ -209,7 +263,7 @@ import {
   loadRegistryConfig,
   buildSelection,
   selectEntries,
-} from 'depseek';
+} from '@ropean/depseek';
 
 const { projects } = await scan({ roots: ['.'] });
 const selection = buildSelection({}, {});

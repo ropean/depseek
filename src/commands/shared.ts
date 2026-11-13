@@ -6,6 +6,7 @@ import { loadRegistryConfig, RegistryClient } from '../registry.js';
 import type { ScanResult } from '../scan.js';
 import { buildSelection, selectEntries, type Selection } from '../select.js';
 import { FORMATS, type Format } from '../spec.js';
+import { parseCooldown } from '../ncu.js';
 import { TARGETS } from '../versions.js';
 
 export interface Prepared {
@@ -30,8 +31,12 @@ export function getTarget(ctx: Ctx): string {
 }
 
 export function createClient(ctx: Ctx, dir: string): RegistryClient {
+  const config = loadRegistryConfig(dir);
+  if (ctx.opts.registry) config.registry = String(ctx.opts.registry).replace(/\/?$/, '/');
   return new RegistryClient({
-    config: loadRegistryConfig(dir),
+    config,
+    retries: ctx.opts.retry as number | undefined,
+    timeout: ctx.opts.timeout as number | undefined,
     concurrency: (ctx.opts.concurrency as number | undefined) ?? ctx.config.concurrency ?? 16,
     cacheTtl: ctx.config.cacheTtl ?? 10,
     useCache: ctx.opts.cache !== false,
@@ -73,7 +78,12 @@ export function analyzeOptions(ctx: Ctx, prep: Prepared, extra: Partial<AnalyzeO
     target: getTarget(ctx),
     format: getFormat(ctx),
     formatConfig: c.format,
-    cooldown: (ctx.opts.cooldown as number | undefined) ?? c.cooldown ?? 0,
+    cooldown: parseCooldown(ctx.opts.cooldown ?? c.cooldown) ?? 0,
+    minimal: Boolean(ctx.opts.minimal ?? c.minimal),
+    peer: Boolean(ctx.opts.peer ?? c.peer),
+    enginesNode: Boolean(ctx.opts.enginesNode ?? c.enginesNode),
+    pre: Boolean(ctx.opts.pre ?? c.pre),
+    ownerChanged: Boolean(ctx.opts.ownerChanged ?? c.ownerChanged),
     pinWildcards: Boolean(ctx.opts.pinWildcards),
     pins: c.pin,
     ignoreVersions: c.ignoreVersions,
@@ -102,13 +112,14 @@ export function printSummary(ctx: Ctx, result: ScanResult): void {
   ctx.out();
 }
 
-export type ErrorOn = 'outdated' | 'major' | 'deprecated' | 'peer' | 'conflicts' | 'vulnerable';
-const ERROR_ON: readonly ErrorOn[] = ['outdated', 'major', 'deprecated', 'peer', 'conflicts', 'vulnerable'];
+export type ErrorOn = 'outdated' | 'major' | 'deprecated' | 'peer' | 'conflicts' | 'vulnerable' | 'owner';
+const ERROR_ON: readonly ErrorOn[] = ['outdated', 'major', 'deprecated', 'peer', 'conflicts', 'vulnerable', 'owner'];
 
 export function errorOn(ctx: Ctx): Set<ErrorOn> {
   const l = list(ctx.opts.errorOn) ?? [];
   // --error-on vulnerable implies --audit
   if (l.includes('vulnerable') && ctx.opts.audit === undefined) ctx.opts.audit = true;
+  if (l.includes('owner')) ctx.opts.ownerChanged = true;
   for (const x of l)
     if (!(ERROR_ON as readonly string[]).includes(x))
       throw new Error(`Unknown --error-on "${x}" (expected ${ERROR_ON.join(', ')})`);
@@ -126,9 +137,27 @@ export function analysisFails(conds: Set<ErrorOn>, a: Analysis): string[] {
     why.push('deprecated versions');
   if (conds.has('peer') && a.updates.some((u) => u.warnings.some((w) => w.type === 'peer')))
     why.push('peer dependency problems');
-  if (conds.has('vulnerable') && a.updates.some((u) => u.warnings.some((w) => w.type === 'vulnerable')))
+  if (
+    conds.has('vulnerable') &&
+    (a.vulnerable.length || a.updates.some((u) => u.warnings.some((w) => w.type === 'vulnerable')))
+  )
     why.push('vulnerabilities');
+  if (conds.has('vulnerable') && a.auditError) why.push('vulnerability check failed');
+  if (conds.has('owner') && a.updates.some((u) => u.warnings.some((w) => w.type === 'owner')))
+    why.push('publisher changes');
   return why;
+}
+
+/**
+ * depseek writes exact versions by default (ncu keeps ^ / ~). Say so when that drops a range prefix
+ * and no --format / config "format" was chosen.
+ */
+export function exactFormatHint(ctx: Ctx, a: Analysis): string | undefined {
+  if (ctx.opts.format !== undefined || ctx.config.format !== undefined || ctx.opts.target === 'semver')
+    return undefined;
+  const n = a.updates.filter((u) => /^[\^~]/.test(u.entry.raw) && !/^[\^~]/.test(u.newRaw)).length;
+  if (!n) return undefined;
+  return `Note: ${n === 1 ? '1 range' : `${n} ranges`} (^ / ~) will be written as exact versions (depseek's default) — add --format preserve to keep the prefix, or set "format" in the config.`;
 }
 
 export function parsePackageArgs(args: string[]): Map<string, string> {

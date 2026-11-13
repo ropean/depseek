@@ -1,3 +1,4 @@
+import { isTool } from './project.js';
 import type { OptValues } from './args.js';
 import { list } from './args.js';
 import { loadConfig, type Config } from './config.js';
@@ -15,6 +16,8 @@ export interface Ctx {
   painter: Painter;
   out: (s?: string) => void;
   err: (s?: string) => void;
+  /** Machine-readable output; stays on when `out` is muted (e.g. -u with JSON output). */
+  stdout: (s?: string) => void;
   interactiveTTY: boolean;
 }
 
@@ -39,6 +42,7 @@ export function createContext(
     painter,
     out: (s = '') => process.stdout.write(`${s}\n`),
     err: (s = '') => process.stderr.write(`${s}\n`),
+    stdout: (s = '') => process.stdout.write(`${s}\n`),
     interactiveTTY: Boolean(process.stdin.isTTY && process.stdout.isTTY),
   };
 }
@@ -68,7 +72,7 @@ export async function runScan(ctx: Ctx, roots: string[]): Promise<ScanResult> {
 
 export function scanSummary(ctx: Ctx, result: ScanResult): string {
   const names = new Set<string>();
-  for (const p of result.projects) for (const d of p.deps) if (d.kind !== 'packageManager') names.add(d.name);
+  for (const p of result.projects) for (const d of p.deps) if (!isTool(d.kind)) names.add(d.name);
   return ctx.painter.paint(
     'dim',
     `Scanned ${plural(result.projects.length, 'package.json', 'package.json files')}, ${plural(names.size, 'unique dependency', 'unique dependencies')}`,

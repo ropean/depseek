@@ -31,6 +31,7 @@ export async function maybeInstall(ctx: Ctx, files: FileChange[]): Promise<{ cod
   const targets = installTargets(
     files.map((f) => f.project),
     (ctx.config.packageManager as PackageManager | undefined) ?? 'bun',
+    ctx.opts.packageManager as PackageManager | undefined,
   );
   if (mode === 'never' || !targets.length) return { code: 0, locks: [] };
   const describe = targets.map((t) => `${t.pm} in ${toPosix(relative(ctx.cwd, t.dir)) || '.'}`).join(', ');

@@ -1,6 +1,7 @@
 import type { Analysis, Update } from '../analyze.js';
 import type { Project } from '../project.js';
 import { changelogUrl } from '../registry.js';
+import { planFileChanges } from '../write.js';
 import type { Painter } from '../util/color.js';
 import { listShort, plural, relativeTime, table } from '../util/text.js';
 import { LEVELS, type Level } from '../versions.js';
@@ -183,6 +184,7 @@ function renderNotes(p: Painter, a: Analysis): string[] {
     out.push('');
   }
   if (a.auditError) out.push(p.paint('warn', `⚠ Vulnerability check failed: ${a.auditError}`), '');
+  else if (a.audited && !a.vulnerable.length) out.push(p.paint('ok', '✓ No known vulnerabilities (OSV)'), '');
   if (a.deprecated.length) {
     out.push(p.paint('deprecated', '⚠ Deprecated versions in use'));
     const seen = new Set<string>();
@@ -311,4 +313,34 @@ export function updatesToMarkdown(a: Analysis): string {
   const warns = a.updates.flatMap((u) => u.warnings.map((w) => `- ⚠️ **${u.name}** (${w.type}): ${w.message}`));
   if (warns.length) lines.push('', '### Warnings', '', ...new Set(warns));
   return `${lines.join('\n')}\n`;
+}
+
+const JSON_DEP_SECTIONS = [
+  'dependencies',
+  'devDependencies',
+  'optionalDependencies',
+  'peerDependencies',
+  'packageManager',
+];
+
+/**
+ * ncu-compatible JSON: --jsonUpgraded ({ name: newSpec }), --jsonAll (new package.json),
+ * --jsonDeps (its dependency sections). One project → the object itself; several → keyed by file.
+ */
+export function updatesToNcuJson(a: Analysis, mode: 'all' | 'deps' | 'upgraded'): unknown {
+  const projects = a.projects ?? [...new Set(a.entries.map((e) => e.project))];
+  const out: Record<string, unknown> = {};
+  for (const p of projects) {
+    const ups = a.updates.filter((u) => u.entry.project === p);
+    if (mode === 'upgraded') {
+      out[p.rel] = Object.fromEntries(ups.map((u) => [u.name, u.newRaw]));
+      continue;
+    }
+    const after = planFileChanges(ups.map((u) => ({ entry: u.entry, newRaw: u.newRaw })))[0]?.after ?? p.text;
+    const json = JSON.parse(after) as Record<string, unknown>;
+    out[p.rel] =
+      mode === 'all' ? json : Object.fromEntries(JSON_DEP_SECTIONS.filter((k) => k in json).map((k) => [k, json[k]]));
+  }
+  const keys = Object.keys(out);
+  return keys.length === 1 ? out[keys[0]!] : out;
 }

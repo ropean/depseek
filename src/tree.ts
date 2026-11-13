@@ -1,8 +1,9 @@
 import { relative } from 'node:path';
+import { isTool } from './project.js';
 import type { Project } from './project.js';
 import type { BrokenFile, ScanResult } from './scan.js';
 import type { Painter } from './util/color.js';
-import { toPosix } from './util/text.js';
+import { table, toPosix } from './util/text.js';
 
 interface Node {
   name: string;
@@ -50,7 +51,7 @@ function describe(p: Project, paint: Painter['paint'], details: boolean): string
   else if (p.workspaceRoot) tags.push('workspace');
   if (p.private) tags.push('private');
   if (p.lock) tags.push(p.lock.name);
-  const count = p.deps.filter((d) => d.kind !== 'overrides' && d.kind !== 'packageManager').length;
+  const count = p.deps.filter((d) => d.kind !== 'overrides' && !isTool(d.kind)).length;
   bits.push(paint('dim', `${count} dep${count === 1 ? '' : 's'}`));
   if (tags.length) bits.push(paint('hint', `[${tags.join(', ')}]`));
   return bits.join('  ');
@@ -108,4 +109,90 @@ export function renderTree(result: ScanResult, painter: Painter, opts: TreeOptio
     out.push('');
   }
   return out.join('\n').trimEnd();
+}
+
+/** Totals for `depseek tree`: package.json files, workspace layout, dependencies and lock files. */
+export function treeSummary(result: ScanResult): {
+  files: number;
+  workspaceRoots: number;
+  workspaceMembers: number;
+  standalone: number;
+  private: number;
+  invalid: number;
+  dependencies: number;
+  unique: number;
+  internal: number;
+  byKind: Record<string, number>;
+  locks: Record<string, number>;
+} {
+  const ps = result.projects;
+  const byKind: Record<string, number> = {};
+  const locks: Record<string, number> = {};
+  const names = new Set<string>();
+  let dependencies = 0;
+  let internal = 0;
+  for (const p of ps) {
+    if (p.lock) locks[p.lock.name] = (locks[p.lock.name] ?? 0) + 1;
+    for (const d of p.deps) {
+      if (d.kind === 'overrides' || isTool(d.kind)) continue;
+      if (d.internal) {
+        internal++;
+        continue;
+      }
+      dependencies++;
+      names.add(d.name);
+      byKind[d.kind] = (byKind[d.kind] ?? 0) + 1;
+    }
+  }
+  const workspaceRoots = ps.filter((p) => p.workspaces).length;
+  const workspaceMembers = ps.filter((p) => !p.workspaces && p.workspaceRoot).length;
+  return {
+    files: ps.length,
+    workspaceRoots,
+    workspaceMembers,
+    standalone: ps.length - workspaceRoots - workspaceMembers,
+    private: ps.filter((p) => p.private).length,
+    invalid: result.broken.length,
+    dependencies,
+    unique: names.size,
+    internal,
+    byKind,
+    locks,
+  };
+}
+
+export function renderTreeSummary(result: ScanResult, painter: Painter): string {
+  const { paint } = painter;
+  const s = treeSummary(result);
+  const kinds = (['prod', 'dev', 'peer', 'optional'] as const)
+    .filter((k) => s.byKind[k])
+    .map((k) => `${k} ${s.byKind[k]}`);
+  const lockNames = Object.entries(s.locks).map(([n, c]) => (c > 1 ? `${n} ×${c}` : n));
+  const lockCount = Object.values(s.locks).reduce((a, b) => a + b, 0);
+  const rows: string[][] = [
+    [
+      'package.json',
+      paint('accent', String(s.files)),
+      paint(
+        'dim',
+        [
+          `${s.workspaceRoots} workspace root${s.workspaceRoots === 1 ? '' : 's'}`,
+          `${s.workspaceMembers} member${s.workspaceMembers === 1 ? '' : 's'}`,
+          `${s.standalone} standalone`,
+          `${s.private} private`,
+        ].join(' · '),
+      ),
+    ],
+    [
+      'dependencies',
+      paint('accent', String(s.dependencies)),
+      paint(
+        'dim',
+        [`${s.unique} unique`, ...kinds, ...(s.internal ? [`+${s.internal} workspace-internal`] : [])].join(' · '),
+      ),
+    ],
+    ['lock files', paint('accent', String(lockCount)), paint('dim', lockNames.join(' · ') || 'none')],
+  ];
+  if (s.invalid) rows.push(['invalid', paint('error', String(s.invalid)), paint('error', '✖ could not be parsed')]);
+  return [paint('accent', 'Summary'), table(rows, { indent: '  ', align: ['left', 'right'] })].join('\n');
 }

@@ -1,5 +1,5 @@
 import { runScan, type Ctx } from '../context.js';
-import { renderTree } from '../tree.js';
+import { renderTree, renderTreeSummary } from '../tree.js';
 
 /** `depseek tree [dir...]` and `--list-files [--tree]`. */
 export async function treeCommand(ctx: Ctx, roots: string[], asTree = true): Promise<number> {
@@ -29,6 +29,8 @@ export async function treeCommand(ctx: Ctx, roots: string[], asTree = true): Pro
   }
   if (asTree) {
     ctx.out(renderTree(result, ctx.painter, { ascii: Boolean(ctx.opts.ascii), cwd: ctx.cwd }));
+    ctx.out();
+    ctx.out(renderTreeSummary(result, ctx.painter));
   } else {
     for (const p of result.projects) ctx.out(p.rel);
   }

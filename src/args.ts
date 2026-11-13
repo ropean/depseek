@@ -16,6 +16,7 @@ export type OptValues = Record<string, string | boolean | number | string[] | un
 export class ArgError extends Error {}
 
 const camel = (s: string): string => s.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
+const kebab = (s: string): string => s.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
 
 export function parseArgv(argv: string[], specs: Record<string, OptSpec>): { opts: OptValues; positionals: string[] } {
   const opts: OptValues = {};
@@ -42,7 +43,8 @@ export function parseArgv(argv: string[], specs: Record<string, OptSpec>): { opt
     }
     if (arg.startsWith('--')) {
       const eq = arg.indexOf('=');
-      let name = eq === -1 ? arg.slice(2) : arg.slice(2, eq);
+      // ncu spells long options in camelCase (--errorLevel); accept both.
+      let name = kebab(eq === -1 ? arg.slice(2) : arg.slice(2, eq));
       const inline = eq === -1 ? undefined : arg.slice(eq + 1);
       let spec = specs[name];
       if (!spec && name.startsWith('no-') && specs[name.slice(3)]) {

@@ -14,6 +14,7 @@ import { RegistryError } from '../registry.js';
 import { conflictsToJson, conflictsToMarkdown, renderConflicts } from '../render/conflicts.js';
 import { selectEntries } from '../select.js';
 import { formatSpec } from '../spec.js';
+import { parseCooldown } from '../ncu.js';
 import { nameMatcher } from '../util/glob.js';
 import { plural } from '../util/text.js';
 import { pickTarget, resolveRange } from '../versions.js';
@@ -70,6 +71,8 @@ async function planFix(
     }
     if (crossMajor && !allowMajor) notes.push(`${c.name}: major lines kept apart (use --allow-major or -i)`);
     for (const bucket of bucketsOf(c, allowMajor)) {
+      // A major line written one way only has nothing to align (don't rewrite `^18.3.1` → `18.3.1`).
+      if (!explicit && align !== 'latest' && variantsOf(bucket).length < 2) continue;
       let target: string | undefined;
       if (explicit || align === 'latest') {
         let meta;
@@ -89,7 +92,7 @@ async function planFix(
           const highest = alignTarget(variantsOf(bucket), 'highest');
           target =
             pickTarget(meta, highest, allowMajor ? 'latest' : 'minor', undefined, {
-              cooldownDays: ctx.config.cooldown,
+              cooldownDays: parseCooldown(ctx.opts.cooldown ?? ctx.config.cooldown),
             }) ?? highest;
         }
       } else {

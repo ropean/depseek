@@ -1,5 +1,7 @@
 # 依赖扫描与版本统一 CLI — 需求规格
 
+[English](./SPEC.md) | 简体中文
+
 Nov 13, 2026 · @Wei Guo
 
 ## 概述
@@ -12,7 +14,7 @@ Nov 13, 2026 · @Wei Guo
 - **默认安全**：写文件前先显示 diff；支持 `--dry-run`；改之前做备份或要求 git 工作区干净。
 - **保留原格式**：写回时保持原来的缩进、换行符、字段顺序和文件末尾换行，只改版本号字符串。
 - **包管理器无关**：只读写 package.json，install 交给用户选择的包管理器（默认识别 bun）。
-- **对 ncu 用户零学习成本**：长短参数、JSON 输出、`.ncurc` 配置与 ncu 兼容，`ncu` 换成 `depseek` 即可（见 README「从 ncu 迁移」）。
+- **对 ncu 用户零学习成本**：长短参数、JSON 输出、`.ncurc` 配置与 ncu 兼容，`ncu` 换成 `depseek` 即可（见 [README](../README.zh-CN.md#从-ncu-迁移)「从 ncu 迁移」）。
 
 **与 ncu 的主要区别**
 

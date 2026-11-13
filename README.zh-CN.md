@@ -1,5 +1,7 @@
 # depseek
 
+[English](./README.md) | 简体中文
+
 > npm 包名：[`@ropean/depseek`](https://www.npmjs.com/package/@ropean/depseek)，命令名：`depseek`
 
 一次扫描某个目录下所有 `package.json`（不要求是 monorepo），列出**跨项目的版本冲突**和**可用更新**，并按指定的版本写法批量更新。参数、短选项、JSON 输出和 `.ncurc` 配置与 [ncu](https://github.com/raineorshine/npm-check-updates) 兼容，可以直接替换（见[从 ncu 迁移](#从-ncu-迁移)）。
@@ -12,7 +14,7 @@
 - **保留原格式**：只替换版本号字符串，缩进、换行符、字段顺序、文件末尾换行全部不变
 - **包管理器无关**：只读写 `package.json`，install 按各项目的 lock 文件调用 bun / pnpm / npm / yarn（没有 lock 时默认 bun）
 
-完整需求见 [docs/SPEC.md](./docs/SPEC.md)。
+完整需求见 [docs/SPEC.zh-CN.md](./docs/SPEC.zh-CN.md)（[English](./docs/SPEC.md)）。
 
 ## 安装
 
@@ -276,7 +278,7 @@ const { updates } = await analyze(projects, entries, { client, selection, target
 
 ## 开发
 
-见 [DEVELOPMENT.md](./DEVELOPMENT.md)。
+见 [DEVELOPMENT.zh-CN.md](./DEVELOPMENT.zh-CN.md)（[English](./DEVELOPMENT.md)）。
 
 ## License
 

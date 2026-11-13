@@ -1,5 +1,7 @@
 # 开发与发布指南
 
+[English](./DEVELOPMENT.md) | 简体中文
+
 > 本文件不会被发布到 npm（`files` 只包含 `dist/`），只给维护者看。
 
 ## 1. 用模板新建一个包
@@ -250,6 +252,7 @@ npm unpublish @ropean/xxx@1.2.3                             # 仅 72 小时内�
 
 ## 6. 约定
 
+- **语言**：代码、注释、commit message 和文档默认使用英文。文档的中文版放在英文文件旁边，后缀为 `.zh-CN.md`（见 [CLAUDE.md](./CLAUDE.md)）。
 - **Commit message** 用 conventional commits（`feat:`、`fix:`、`perf:`、`refactor:`、`docs:`、
   `chore:`，破坏性变更加 `!`，如 `feat!: drop node 20`），CHANGELOG 按此自动分组。
 - **版本号**：`0.x` 阶段 minor 可以有破坏性变更；稳定后严格 semver。

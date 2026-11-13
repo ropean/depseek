@@ -25,6 +25,14 @@ pnpm install
 pnpm run check
 ```
 
+### 包管理器版本
+
+- `package.json` 的 `packageManager`（如 `pnpm@10.33.0`）是**给开发者用的**，固定仓库使用的 pnpm 版本，保证 lock 文件稳定。它只能写精确版本。
+- 本机装的是任意 pnpm ≥ 9.7 都可以：pnpm 会按 `packageManager` 自动下载并切换到该版本（`manage-package-manager-versions`，pnpm 10 默认开启）。也可以用 `corepack enable`。CI 里的 `pnpm/action-setup` 同样读这个字段。
+- `devEngines.packageManager` 声明了“需要 pnpm ≥ 10”，`onFail: warn`：用 npm / yarn 在仓库里 install 时会看到提示，但不会被拦住。
+- **使用者不受影响**：`npm i -g @ropean/depseek`、`pnpm add -g`、`bun add -g`、`npx` 都会忽略这两个字段。
+- 升级本仓库的 pnpm：`node dist/cli.mjs up pnpm@<版本> --dep packageManager`（depseek 自己就能改），再 `pnpm install` 确认 lock 文件不变。
+
 ## 2. 目录结构
 
 ```

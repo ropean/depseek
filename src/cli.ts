@@ -2,6 +2,7 @@
 import pkg from '../package.json' with { type: 'json' };
 import { ArgError, parseArgv, type OptSpec } from './args.js';
 import { checkCommand } from './commands/check.js';
+import { conflictsCommand } from './commands/conflicts.js';
 import { formatCommand } from './commands/format.js';
 import { initCommand } from './commands/init.js';
 import { lsCommand } from './commands/ls.js';
@@ -37,6 +38,10 @@ const OPTIONS: Record<string, OptSpec> = {
   'error-on': { type: 'string', multiple: true },
   concurrency: { type: 'number' },
   cache: { type: 'boolean' },
+  // conflicts
+  fix: { type: 'boolean' },
+  align: { type: 'string' },
+  'allow-major': { type: 'boolean' },
   // writing
   'dry-run': { type: 'boolean', short: 'n' },
   diff: { type: 'boolean' },
@@ -56,13 +61,14 @@ const OPTIONS: Record<string, OptSpec> = {
   version: { type: 'boolean', short: 'v' },
 };
 
-const COMMANDS = ['check', 'up', 'format', 'ls', 'tree', 'undo', 'init'] as const;
+const COMMANDS = ['check', 'up', 'conflicts', 'format', 'ls', 'tree', 'undo', 'init'] as const;
 
 const HELP: string = `depseek ${pkg.version} — find version conflicts and updates across every package.json
 
 Usage
   depseek [dir...] [options]          check for updates (read-only)
   depseek up [pkg[@ver]...] [dir...]  update (same as -u); pkg@ver pins every project to it
+  depseek conflicts [pkg...]          versions that differ between projects (--fix to align)
   depseek format --to <fmt> [dir...]  rewrite version prefixes only (--from-lock: use installed)
   depseek ls [pkg...]                 which projects use a dependency, with which version
   depseek tree [dir...]               show where package.json files are, as a tree
@@ -82,6 +88,11 @@ Checking
   --error-on <cond>                   exit 1 on outdated | major | deprecated | peer | conflicts | vulnerable
   --concurrency <n>                   parallel registry requests (default 16)
   --no-cache                          ignore the 10-minute metadata cache
+
+Conflicts
+  --fix                               align conflicting versions
+  --align <a>                         highest | lowest | most-used | latest | <version> (default highest)
+  --allow-major                       allow aligning across major versions
 
 Writing
   -u, --upgrade                       write changes to package.json
@@ -137,6 +148,8 @@ async function main(argv: string[]): Promise<number> {
       return treeCommand(ctx, positionals, true);
     case 'up':
       return upCommand(ctx, positionals);
+    case 'conflicts':
+      return conflictsCommand(ctx, positionals);
     case 'format':
       return formatCommand(ctx, positionals);
     case 'ls':

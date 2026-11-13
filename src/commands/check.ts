@@ -1,4 +1,6 @@
 import type { Analysis } from '../analyze.js';
+import { findConflicts } from '../conflicts.js';
+import { selectEntries } from '../select.js';
 import type { Ctx } from '../context.js';
 import { renderUpdates, updatesToJson, updatesToMarkdown, type GroupBy } from '../render/check.js';
 import { analysisFails, errorOn, prepare, printSummary, runAnalysis } from './shared.js';
@@ -28,6 +30,14 @@ export async function checkCommand(ctx: Ctx, roots: string[]): Promise<number> {
     ctx.out(ctx.painter.paint('dim', 'Run with -u to write, -i to pick interactively, --dry-run to preview the diff.'));
   }
   const why = analysisFails(conds, a);
+  if (conds.has('conflicts')) {
+    const cfg = ctx.config.conflicts ?? {};
+    const conflicts = findConflicts(selectEntries(prep.result.projects, prep.selection), {
+      ignore: cfg.ignore,
+      groups: cfg.groups,
+    });
+    if (conflicts.some((c) => c.severity !== 'hint')) why.push('version conflicts');
+  }
   if (why.length) {
     ctx.err(ctx.painter.paint('error', `✖ --error-on: ${why.join(', ')}`));
     return 1;

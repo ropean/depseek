@@ -23,20 +23,7 @@ export function clearLockCache(): void {
 
 /** Version installed in node_modules (searching up to the workspace root). */
 export function installedVersion(project: Project, name: string): string | undefined {
-  let dir = project.dir;
-  const stop = project.effectiveLock ? dirname(project.effectiveLock.file) : project.dir;
-  for (let i = 0; i < 10; i++) {
-    const file = join(dir, 'node_modules', name, 'package.json');
-    if (existsSync(file)) {
-      const v = readCached(file, (t) => (JSON.parse(t) as { version?: string }).version);
-      if (v) return v;
-    }
-    if (dir === stop) break;
-    const up = dirname(dir);
-    if (up === dir) break;
-    dir = up;
-  }
-  return undefined;
+  return installedManifest(project, name)?.version;
 }
 
 function jsonc(text: string): unknown {
@@ -155,4 +142,29 @@ export function lockedVersion(entry: DepEntry): string | undefined {
 export function resolvedInstalled(entry: DepEntry): string | undefined {
   const name = entry.spec.alias ? entry.path[entry.path.length - 1]! : entry.name;
   return installedVersion(entry.project, name) ?? lockedVersion(entry);
+}
+
+/** package.json of an installed dependency (node_modules lookup only). */
+export function installedManifest(
+  project: Project,
+  name: string,
+):
+  | {
+      version?: string;
+      peerDependencies?: Record<string, string>;
+      peerDependenciesMeta?: Record<string, { optional?: boolean }>;
+    }
+  | undefined {
+  let dir = project.dir;
+  const stop = project.effectiveLock ? dirname(project.effectiveLock.file) : project.dir;
+  for (let i = 0; i < 10; i++) {
+    const file = join(dir, 'node_modules', name, 'package.json');
+    if (existsSync(file))
+      return readCached(file, (t) => JSON.parse(t) as { version?: string; peerDependencies?: Record<string, string> });
+    if (dir === stop) break;
+    const up = dirname(dir);
+    if (up === dir) break;
+    dir = up;
+  }
+  return undefined;
 }

@@ -9,7 +9,7 @@
 git clone git@github.com:ropean/<new-repo>.git && cd <new-repo>
 
 # 方式 B：不带模板的 git 历史直接拷一份
-pnpm dlx degit ropean/npm-package-template <new-repo> && cd <new-repo> && git init
+pnpm dlx degit ropean/depseek <new-repo> && cd <new-repo> && git init
 ```
 
 然后运行一次初始化脚本（改名、重置版本和 CHANGELOG、可选去掉 CLI，跑完会删掉自己）：
@@ -73,7 +73,7 @@ pnpm build && node dist/cli.mjs --help
 ```bash
 pnpm build
 pnpm link:global          # = pnpm link --global，把 bin 注册到全局 PATH
-my-cli --help             # 任意目录可用
+depseek --help             # 任意目录可用
 pnpm dev                  # 开着 watch，改完代码全局命令立刻生效，无需重新 link
 pnpm unlink:global        # 用完移除
 ```

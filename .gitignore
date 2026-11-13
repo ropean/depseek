@@ -1,11 +1,158 @@
+# ── Dependencies ────────────────────────────────────────────────────────────
 node_modules/
+jspm_packages/
+web_modules/
+
+# ── Build output ────────────────────────────────────────────────────────────
 dist/
+build/
+out/
+*.tsbuildinfo
+
+# ── Tests & coverage ────────────────────────────────────────────────────────
 coverage/
+.nyc_output/
+*.lcov
+junit.xml
+test-results/
+.vitest/
+__snapshots__/*.snap.new
+
+# ── Packaging & smoke tests ─────────────────────────────────────────────────
 *.tgz
 .smoke/
+
+# ── Package managers ────────────────────────────────────────────────────────
+# This repo uses pnpm (see "packageManager" in package.json); pnpm-lock.yaml is
+# the only lock file that belongs here. Ignore the others so that running
+# npm / yarn / bun by accident does not commit a second lock file.
+package-lock.json
+npm-shrinkwrap.json
+yarn.lock
+bun.lock
+bun.lockb
+
+# npm
+.npm/
+.npm-cache/
+
+# pnpm
+.pnpm-store/
+.pnpm-debug.log*
+
+# Yarn (classic and Berry / Plug'n'Play)
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
+.yarn-integrity
+.pnp.*
+
+# Bun
+.bun/
+
+# Corepack / version managers (keep .nvmrc / .node-version / .tool-versions if added)
+.corepack/
+.volta/
+
+# ── Caches ──────────────────────────────────────────────────────────────────
+.cache/
+.eslintcache
+.stylelintcache
+.prettiercache
+.oxlintcache
+.turbo/
+.parcel-cache/
+.rollup.cache/
+.vite/
+.temp/
+.tmp/
+tmp/
+
+# ── Logs & debug output ─────────────────────────────────────────────────────
+logs/
 *.log
-.DS_Store
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+*.cpuprofile
+*.heapsnapshot
+*.heapprofile
+
+# ── Environment & secrets ───────────────────────────────────────────────────
 .env
 .env.*
 !.env.example
-.eslintcache
+*.pem
+*.key
+
+# ── Editors & IDEs ──────────────────────────────────────────────────────────
+# VS Code / Cursor / Windsurf: keep shareable settings, ignore the rest
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/tasks.json
+.history/
+*.code-workspace
+
+# JetBrains (WebStorm, IntelliJ IDEA, …)
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Fleet / Zed / Sublime Text
+.fleet/
+.zed/
+*.sublime-project
+*.sublime-workspace
+
+# Vim / Emacs
+*.swp
+*.swo
+*~
+\#*\#
+.\#*
+Session.vim
+.netrwhist
+
+# ── AI coding assistants (keep shared config, ignore local state) ───────────
+.claude/settings.local.json
+.claude/worktrees/
+CLAUDE.local.md
+.aider*
+
+# ── Operating systems ───────────────────────────────────────────────────────
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+.fseventsd
+.TemporaryItems
+.DocumentRevisions-V100
+.VolumeIcon.icns
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+desktop.ini
+$RECYCLE.BIN/
+*.lnk
+*.stackdump
+
+# Linux
+.directory
+.fuse_hidden*
+.nfs*
+.Trash-*

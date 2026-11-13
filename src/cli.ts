@@ -4,7 +4,7 @@ import { parseArgs } from 'node:util';
 import pkg from '../package.json' with { type: 'json' };
 import { greet } from './index.js';
 
-const HELP = `Usage: my-cli [name] [options]
+const HELP = `Usage: depseek [name] [options]
 
 Options:
   -l, --loud     Shout the greeting

@@ -1,20 +1,20 @@
-# @ropean/npm-package-template
+# depseek
 
-TODO: one-line description
+Scan every package.json under a directory, find cross-project version conflicts and outdated deps, and update them in one go.
 
-[![npm](https://img.shields.io/npm/v/@ropean/npm-package-template.svg)](https://www.npmjs.com/package/@ropean/npm-package-template)
-[![CI](https://github.com/ropean/npm-package-template/actions/workflows/ci.yml/badge.svg)](https://github.com/ropean/npm-package-template/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/depseek.svg)](https://www.npmjs.com/package/depseek)
+[![CI](https://github.com/ropean/depseek/actions/workflows/ci.yml/badge.svg)](https://github.com/ropean/depseek/actions/workflows/ci.yml)
 
 ## Install
 
 ```sh
-pnpm add @ropean/npm-package-template
+pnpm add depseek
 ```
 
 ## Usage
 
 ```ts
-import { greet } from '@ropean/npm-package-template';
+import { greet } from 'depseek';
 
 greet('world'); // "Hello, world!"
 greet('world', { loud: true }); // "HELLO, WORLD!"
@@ -22,18 +22,16 @@ greet('world', { loud: true }); // "HELLO, WORLD!"
 
 Works with both `import` (ESM) and `require` (CommonJS); TypeScript types are included.
 
-<!-- cli -->
 
 ## CLI
 
 ```sh
-npx @ropean/npm-package-template --help
+npx depseek --help
 # or install globally
-pnpm add -g @ropean/npm-package-template
-my-cli world --loud
+pnpm add -g depseek
+depseek world --loud
 ```
 
-<!-- /cli -->
 
 ## Development
 

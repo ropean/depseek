@@ -37,7 +37,8 @@
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.cts",
   "bin": {
-    "depseek": "./dist/cli.mjs"
+    "depseek": "./dist/cli.mjs",
+    "ds": "./dist/cli.mjs"
   },
   "files": [
     "dist"

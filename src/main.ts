@@ -111,7 +111,7 @@ const COMMANDS = ['check', 'up', 'conflicts', 'format', 'ls', 'tree', 'undo', 'd
 
 const HELP: string = `depseek ${pkg.version} — find version conflicts and updates across every package.json
 
-Usage
+Usage (ds is a short alias of depseek)
   depseek [dir...] [pkg...] [options] check for updates (read-only); pkg names/globs//regex/ filter
   depseek up [pkg[@ver]...] [dir...]  update (same as -u); pkg@ver pins every project to it
   depseek conflicts [pkg...]          versions that differ between projects (--fix to align)

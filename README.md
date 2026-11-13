@@ -21,6 +21,13 @@ npm i -g @ropean/depseek     # 或 pnpm add -g / bun add -g / yarn global add
 npx @ropean/depseek --help   # 不安装直接用（pnpm dlx / bunx 同理）
 ```
 
+安装后有两个命令：`depseek` 和简写 `ds`（完全相同，下文都写 `depseek`）。如果 `ds` 和你机器上其它命令重名，用 `depseek` 即可。
+
+```sh
+ds                 # = depseek
+ds up -i           # = depseek up -i
+```
+
 需要 Node.js ≥ 22。
 
 ## 快速上手

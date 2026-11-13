@@ -2,7 +2,19 @@
   "name": "depseek",
   "version": "0.0.1",
   "description": "Scan every package.json under a directory, find cross-project version conflicts and outdated deps, and update them in one go.",
-  "keywords": [],
+  "keywords": [
+    "dependencies",
+    "package.json",
+    "monorepo",
+    "npm-check-updates",
+    "ncu",
+    "upgrade",
+    "outdated",
+    "version-conflicts",
+    "bun",
+    "pnpm",
+    "cli"
+  ],
   "homepage": "https://github.com/ropean/depseek#readme",
   "bugs": {
     "url": "https://github.com/ropean/depseek/issues"

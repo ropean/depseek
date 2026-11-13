@@ -4,6 +4,9 @@ import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { mapLimit } from './util/pool.js';
 
+/** Environment variables (kept free of @types/node for consumers). */
+export type Env = Record<string, string | undefined>;
+
 export const DEFAULT_REGISTRY = 'https://registry.npmjs.org/';
 
 export interface RegistryAuth {
@@ -38,13 +41,13 @@ export interface PackageMeta {
 }
 
 const withSlash = (u: string): string => (u.endsWith('/') ? u : `${u}/`);
-const expandEnv = (s: string, env: NodeJS.ProcessEnv): string =>
+const expandEnv = (s: string, env: Env): string =>
   s.replace(
     /\$\{([^}]+)\}|\$([A-Z_][A-Z0-9_]*)/gi,
     (_, a: string | undefined, b: string | undefined) => env[(a ?? b)!] ?? '',
   );
 
-export function parseNpmrc(text: string, cfg: RegistryConfig, env: NodeJS.ProcessEnv = process.env): void {
+export function parseNpmrc(text: string, cfg: RegistryConfig, env: Env = process.env): void {
   const users = new Map<string, { username?: string; password?: string }>();
   for (const line of text.split(/\r?\n/)) {
     const t = line.trim();
@@ -82,7 +85,7 @@ export function parseNpmrc(text: string, cfg: RegistryConfig, env: NodeJS.Proces
 }
 
 /** Parse the registry bits of bunfig.toml: [install] registry and [install.scopes]. */
-export function parseBunfig(text: string, cfg: RegistryConfig, env: NodeJS.ProcessEnv = process.env): void {
+export function parseBunfig(text: string, cfg: RegistryConfig, env: Env = process.env): void {
   let section = '';
   const val = (raw: string): { url?: string; token?: string } => {
     raw = raw.trim();
@@ -115,7 +118,7 @@ export function parseBunfig(text: string, cfg: RegistryConfig, env: NodeJS.Proce
 }
 
 /** Collect registry settings: ~/.npmrc, then .npmrc / bunfig.toml from the git root down to `dir`. */
-export function loadRegistryConfig(dir: string, env: NodeJS.ProcessEnv = process.env): RegistryConfig {
+export function loadRegistryConfig(dir: string, env: Env = process.env): RegistryConfig {
   const cfg: RegistryConfig = { registry: DEFAULT_REGISTRY, scopes: {}, auth: [] };
   const read = (f: string): string | undefined => {
     try {
@@ -169,7 +172,7 @@ export function authHeader(url: string, cfg: RegistryConfig): string | undefined
   return best.token ? `Bearer ${best.token}` : `Basic ${best.basic}`;
 }
 
-export function cacheDir(env: NodeJS.ProcessEnv = process.env): string {
+export function cacheDir(env: Env = process.env): string {
   if (env.DEPSEEK_CACHE_DIR) return env.DEPSEEK_CACHE_DIR;
   const base =
     env.XDG_CACHE_HOME ??

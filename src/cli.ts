@@ -2,7 +2,11 @@
 import pkg from '../package.json' with { type: 'json' };
 import { ArgError, parseArgv, type OptSpec } from './args.js';
 import { checkCommand } from './commands/check.js';
+import { formatCommand } from './commands/format.js';
 import { initCommand } from './commands/init.js';
+import { lsCommand } from './commands/ls.js';
+import { undoCommand } from './commands/undo.js';
+import { upCommand } from './commands/up.js';
 import { treeCommand } from './commands/tree.js';
 import { createContext, type Ctx } from './context.js';
 
@@ -33,6 +37,15 @@ const OPTIONS: Record<string, OptSpec> = {
   'error-on': { type: 'string', multiple: true },
   concurrency: { type: 'number' },
   cache: { type: 'boolean' },
+  // writing
+  'dry-run': { type: 'boolean', short: 'n' },
+  diff: { type: 'boolean' },
+  install: { type: 'string' },
+  'git-check': { type: 'boolean' },
+  commit: { type: 'boolean', optionalValue: true },
+  to: { type: 'string' },
+  'from-lock': { type: 'boolean' },
+  list: { type: 'boolean' },
   // output
   theme: { type: 'string' },
   output: { type: 'string', short: 'o' },
@@ -43,13 +56,18 @@ const OPTIONS: Record<string, OptSpec> = {
   version: { type: 'boolean', short: 'v' },
 };
 
-const COMMANDS = ['check', 'tree', 'init'] as const;
+const COMMANDS = ['check', 'up', 'format', 'ls', 'tree', 'undo', 'init'] as const;
 
 const HELP: string = `depseek ${pkg.version} — find version conflicts and updates across every package.json
 
 Usage
   depseek [dir...] [options]          check for updates (read-only)
+  depseek up [pkg[@ver]...] [dir...]  update (same as -u); pkg@ver pins every project to it
+  depseek format --to <fmt> [dir...]  rewrite version prefixes only (--from-lock: use installed)
+  depseek ls [pkg...]                 which projects use a dependency, with which version
   depseek tree [dir...]               show where package.json files are, as a tree
+  depseek undo [id] [--list]          restore package.json files from the last write
+  depseek init                        create depseek.config.json
 
 Checking
   -t, --target <t>                    latest | minor | patch | semver | greatest | newest | @<tag>
@@ -64,6 +82,15 @@ Checking
   --error-on <cond>                   exit 1 on outdated | major | deprecated | peer | conflicts | vulnerable
   --concurrency <n>                   parallel registry requests (default 16)
   --no-cache                          ignore the 10-minute metadata cache
+
+Writing
+  -u, --upgrade                       write changes to package.json
+  -n, --dry-run                       only print the diff
+  --no-diff                           don't print the diff before writing
+  --install <mode>                    always | prompt | never (default prompt)
+  --no-git-check                      allow writing files with uncommitted changes
+  --commit[=level]                    git commit the changes (one commit per level with =level)
+  -y, --yes                           assume yes for prompts
 
 Scanning
   -r, --recursive / --no-recursive    recurse into sub-directories (default on)
@@ -108,12 +135,21 @@ async function main(argv: string[]): Promise<number> {
   switch (command) {
     case 'tree':
       return treeCommand(ctx, positionals, true);
+    case 'up':
+      return upCommand(ctx, positionals);
+    case 'format':
+      return formatCommand(ctx, positionals);
+    case 'ls':
+      return lsCommand(ctx, positionals);
+    case 'undo':
+      return undoCommand(ctx, positionals);
     case 'init':
       return initCommand(ctx);
     case 'check':
     default:
       if (opts.listFiles) return treeCommand(ctx, positionals, Boolean(opts.tree));
       if (opts.tree) return treeCommand(ctx, positionals, true);
+      if (opts.upgrade) return upCommand(ctx, positionals, true);
       return checkCommand(ctx, positionals);
   }
 }

@@ -374,11 +374,14 @@ function applyGroups(
       const members = projEntries.filter((e) => match(e.name) && e.kind !== 'peer' && e.spec.kind === 'range');
       if (members.length < 2) continue;
       const memberUpdates = members.map((m) => updates.find((u) => u.entry === m));
-      const targets = memberUpdates.filter((u): u is Update => Boolean(u) && !u!.explicit).map((u) => u.target);
+      const present = memberUpdates.filter((u): u is Update => Boolean(u));
+      const explicitTarget = present.find((u) => u.explicit && !u.downgrade)?.target;
+      const targets = present.filter((u) => !u.explicit).map((u) => u.target);
       if (!targets.length) continue;
-      const common = semver.sort([...targets])[0]!;
+      // An explicitly requested version (`up react@19.0.0`) wins; otherwise the lowest common target.
+      const common = explicitTarget ?? semver.sort([...targets])[0]!;
       if (members.some((m) => m.spec.base && semver.gt(m.spec.base, common))) continue;
-      const label = group.join(' + ');
+      const label = `the ${group[0]} group`;
       members.forEach((m, i) => {
         const meta = metas.get(m.name);
         if (!meta) return;

@@ -53,7 +53,9 @@ function rowCells(p: Painter, r: Row, withProjects: boolean): string[] {
   const u = r.sample;
   const tag = sectionTag(r.section);
   const flags: string[] = [];
-  if (u.warnings.length) flags.push(p.paint('warn', `⚠ ${u.warnings.length}`));
+  const warns = u.warnings.filter((w) => w.type !== 'fixes').length;
+  if (u.warnings.some((w) => w.type === 'fixes')) flags.push(p.paint('ok', '✓ security fix'));
+  if (warns) flags.push(p.paint('warn', `⚠ ${warns}`));
   return [
     r.name + (tag ? ` ${p.paint('dim', `(${tag})`)}` : ''),
     r.raw,
@@ -131,12 +133,13 @@ export function renderUpdates(
   if (opts.showWarnings !== false) {
     const warned = mergeRows(a.updates.filter((u) => u.warnings.length));
     if (warned.length) {
-      out.push(p.paint('warn', 'Warnings'));
+      out.push(p.paint('warn', 'Notes'));
       const seen = new Set<string>();
       for (const r of warned) {
         for (const u of a.updates.filter((x) => x.name === r.name && x.newRaw === r.newRaw)) {
           for (const w of u.warnings) {
-            const line = `  ${p.paint('warn', '⚠')} ${r.name} ${p.paint('dim', `[${w.type}]`)} ${w.message}`;
+            const mark = w.type === 'fixes' ? p.paint('ok', '✓') : p.paint('warn', '⚠');
+            const line = `  ${mark} ${r.name} ${p.paint('dim', `[${w.type}]`)} ${w.message}`;
             if (seen.has(line)) continue;
             seen.add(line);
             out.push(line);
@@ -156,6 +159,30 @@ export function renderUpdates(
 
 function renderNotes(p: Painter, a: Analysis): string[] {
   const out: string[] = [];
+  if (a.vulnerable.length) {
+    out.push(p.paint('high', '● Known vulnerabilities (OSV)'));
+    const rows = new Map<string, string[]>();
+    for (const v of a.vulnerable) {
+      const key = `${v.entry.name}@${v.version}`;
+      if (!rows.has(key)) {
+        const ids = v.vulns.map(
+          (x) =>
+            `${x.aliases.find((al) => al.startsWith('CVE-')) ?? x.id}${x.severity ? ` (${x.severity.toLowerCase()})` : ''}`,
+        );
+        rows.set(key, [
+          p.paint('high', key),
+          ids.join(', '),
+          v.fixedIn ? p.paint('ok', `fix: ≥ ${v.fixedIn}`) : p.paint('dim', 'no fix yet'),
+          '',
+        ]);
+      }
+      const r = rows.get(key)!;
+      r[3] = p.paint('dim', listShort([...new Set([...(r[3] ? r[3].split(', ') : []), v.entry.project.relDir])]));
+    }
+    out.push(table([...rows.values()], { indent: '  ' }));
+    out.push('');
+  }
+  if (a.auditError) out.push(p.paint('warn', `⚠ Vulnerability check failed: ${a.auditError}`), '');
   if (a.deprecated.length) {
     out.push(p.paint('deprecated', '⚠ Deprecated versions in use'));
     const seen = new Set<string>();
@@ -252,6 +279,13 @@ export function updatesToJson(a: Analysis): unknown {
       spec: s.entry.raw,
       project: s.entry.project.rel,
       reason: s.reason,
+    })),
+    vulnerabilities: a.vulnerable.map((v) => ({
+      name: v.entry.name,
+      version: v.version,
+      project: v.entry.project.rel,
+      fixedIn: v.fixedIn,
+      ids: v.vulns.map((x) => x.id),
     })),
     summary: levelCounts(a.updates),
   };

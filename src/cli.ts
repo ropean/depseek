@@ -3,6 +3,7 @@ import pkg from '../package.json' with { type: 'json' };
 import { ArgError, parseArgv, type OptSpec } from './args.js';
 import { checkCommand } from './commands/check.js';
 import { conflictsCommand } from './commands/conflicts.js';
+import { doctorCommand } from './commands/doctor.js';
 import { formatCommand } from './commands/format.js';
 import { initCommand } from './commands/init.js';
 import { lsCommand } from './commands/ls.js';
@@ -36,6 +37,7 @@ const OPTIONS: Record<string, OptSpec> = {
   'pin-wildcards': { type: 'boolean' },
   'group-by': { type: 'string', short: 'g' },
   'error-on': { type: 'string', multiple: true },
+  audit: { type: 'boolean' },
   concurrency: { type: 'number' },
   cache: { type: 'boolean' },
   // conflicts
@@ -52,6 +54,7 @@ const OPTIONS: Record<string, OptSpec> = {
   to: { type: 'string' },
   'from-lock': { type: 'boolean' },
   list: { type: 'boolean' },
+  test: { type: 'string' },
   // output
   theme: { type: 'string' },
   output: { type: 'string', short: 'o' },
@@ -62,7 +65,7 @@ const OPTIONS: Record<string, OptSpec> = {
   version: { type: 'boolean', short: 'v' },
 };
 
-const COMMANDS = ['check', 'up', 'conflicts', 'format', 'ls', 'tree', 'undo', 'init'] as const;
+const COMMANDS = ['check', 'up', 'conflicts', 'format', 'ls', 'tree', 'undo', 'doctor', 'init'] as const;
 
 const HELP: string = `depseek ${pkg.version} — find version conflicts and updates across every package.json
 
@@ -74,6 +77,7 @@ Usage
   depseek ls [pkg...]                 which projects use a dependency, with which version
   depseek tree [dir...]               show where package.json files are, as a tree
   depseek undo [id] [--list]          restore package.json files from the last write
+  depseek doctor [--test <cmd>]       upgrade one package at a time, keep it only if tests pass
   depseek init                        create depseek.config.json
 
 Checking
@@ -86,6 +90,7 @@ Checking
   --cooldown <days>                   ignore versions published in the last N days
   --pin-wildcards                     also resolve "*", "x" and "latest" to a concrete version
   -g, --group-by <g>                  package | project | level (default package)
+  --audit                             check current versions against OSV vulnerability data
   --error-on <cond>                   exit 1 on outdated | major | deprecated | peer | conflicts | vulnerable
   --concurrency <n>                   parallel registry requests (default 16)
   --no-cache                          ignore the 10-minute metadata cache
@@ -158,6 +163,8 @@ async function main(argv: string[]): Promise<number> {
       return lsCommand(ctx, positionals);
     case 'undo':
       return undoCommand(ctx, positionals);
+    case 'doctor':
+      return doctorCommand(ctx, positionals);
     case 'init':
       return initCommand(ctx);
     case 'check':

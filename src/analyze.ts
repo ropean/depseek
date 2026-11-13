@@ -1,4 +1,5 @@
 import semver from 'semver';
+import { audit, type Vulnerability } from './audit.js';
 import type { Config } from './config.js';
 import { resolvedInstalled } from './lock.js';
 import type { DepEntry, DepKind, Project } from './project.js';
@@ -8,7 +9,8 @@ import { formatSpec, UNCHECKABLE, type Format } from './spec.js';
 import { nameMatcher } from './util/glob.js';
 import { candidates, diffLevel, pickTarget, resolveRange, type Level } from './versions.js';
 
-export type WarningType = 'peer' | 'engines' | 'deprecated' | 'license' | 'vulnerable' | 'group' | 'types';
+/** `fixes` is informational: the upgrade resolves a known vulnerability. */
+export type WarningType = 'peer' | 'engines' | 'deprecated' | 'license' | 'vulnerable' | 'fixes' | 'group' | 'types';
 
 export interface Warning {
   type: WarningType;
@@ -46,6 +48,14 @@ export interface DeprecatedUse {
   message: string;
 }
 
+export interface VulnerableUse {
+  entry: DepEntry;
+  version: string;
+  vulns: Vulnerability[];
+  /** Lowest version fixing all known vulnerabilities, if any. */
+  fixedIn?: string;
+}
+
 export interface Analysis {
   entries: DepEntry[];
   updates: Update[];
@@ -54,6 +64,9 @@ export interface Analysis {
   errors: Map<string, string>;
   metas: Map<string, PackageMeta>;
   deprecated: DeprecatedUse[];
+  vulnerable: VulnerableUse[];
+  /** Set when --audit was requested but OSV could not be reached. */
+  auditError?: string;
   /** Updates removed by --level. */
   filteredByLevel: number;
 }
@@ -98,6 +111,9 @@ export interface AnalyzeOptions {
   explicit?: Map<string, string>;
   onProgress?: (done: number, total: number) => void;
   now?: number;
+  /** Query OSV for known vulnerabilities of the current versions. */
+  audit?: boolean;
+  auditFetch?: typeof fetch;
 }
 
 export function resolveFormat(
@@ -290,7 +306,28 @@ export async function analyze(projects: Project[], entries: DepEntry[], opts: An
   }
 
   runChecks(projects, final, metas, opts);
-  return { entries, updates: final, skipped, ignored, errors, metas, deprecated, filteredByLevel };
+
+  let vulnerable: VulnerableUse[] = [];
+  let auditError: string | undefined;
+  if (opts.audit) {
+    try {
+      vulnerable = await auditEntries(checkable, metas, final, opts.auditFetch);
+    } catch (e) {
+      auditError = (e as Error).message;
+    }
+  }
+  return {
+    entries,
+    updates: final,
+    skipped,
+    ignored,
+    errors,
+    metas,
+    deprecated,
+    filteredByLevel,
+    vulnerable,
+    auditError,
+  };
 }
 
 /** Keep @types/* on the same major (and minor where possible) as the package they describe. */
@@ -488,4 +525,39 @@ function runChecks(
       }
     }
   }
+}
+
+async function auditEntries(
+  entries: DepEntry[],
+  metas: Map<string, PackageMeta>,
+  updates: Update[],
+  fetchFn?: typeof fetch,
+): Promise<VulnerableUse[]> {
+  const uses = entries
+    .filter((e) => e.kind !== 'packageManager')
+    .map((e) => ({ entry: e, version: currentResolved(e, metas.get(e.name)) }))
+    .filter((u): u is { entry: DepEntry; version: string } => Boolean(u.version && semver.valid(u.version)));
+  const results = await audit(
+    uses.map((u) => ({ name: u.entry.name, version: u.version })),
+    fetchFn,
+  );
+  const out: VulnerableUse[] = [];
+  for (const u of uses) {
+    const vulns = results.get(`${u.entry.name}@${u.version}`);
+    if (!vulns?.length) continue;
+    const fixes = vulns.map((v) => v.fixed);
+    const fixedIn = fixes.every(Boolean) ? semver.sort(fixes as string[]).at(-1) : undefined;
+    out.push({ entry: u.entry, version: u.version, vulns, fixedIn });
+    const up = updates.find((x) => x.entry === u.entry);
+    if (up) {
+      const ids = vulns.map((v) => v.aliases.find((a) => a.startsWith('CVE-')) ?? v.id).join(', ');
+      if (fixedIn && semver.gte(up.target, fixedIn)) up.warnings.push({ type: 'fixes', message: `fixes ${ids}` });
+      else
+        up.warnings.push({
+          type: 'vulnerable',
+          message: `${up.target} may still be affected by ${ids}${fixedIn ? ` (fixed in ${fixedIn})` : ''}`,
+        });
+    }
+  }
+  return out;
 }

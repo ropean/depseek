@@ -208,3 +208,11 @@ export function undo(id?: string, force = false): UndoResult | undefined {
   rmSync(dir, { recursive: true, force: true });
   return { manifest, restored, modified };
 }
+
+/** Record the current contents as "written" so `undo` accepts them (used after doctor runs). */
+export function refreshBackup(id: string): void {
+  const file = join(backupsDir(), id, 'manifest.json');
+  const m = JSON.parse(readFileSync(file, 'utf8')) as BackupManifest;
+  for (const f of m.files) if (existsSync(f.path)) f.writtenHash = sha(readFileSync(f.path, 'utf8'));
+  writeFileSync(file, JSON.stringify(m, null, 2));
+}

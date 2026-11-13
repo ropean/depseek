@@ -81,6 +81,7 @@ export function analyzeOptions(ctx: Ctx, prep: Prepared, extra: Partial<AnalyzeO
     builtinGroups: c.builtinGroups,
     runtime: c.runtime,
     licenseCheck: c.licenseCheck,
+    audit: (ctx.opts.audit as boolean | undefined) ?? c.audit ?? false,
     ...extra,
   };
 }
@@ -106,6 +107,8 @@ const ERROR_ON: readonly ErrorOn[] = ['outdated', 'major', 'deprecated', 'peer',
 
 export function errorOn(ctx: Ctx): Set<ErrorOn> {
   const l = list(ctx.opts.errorOn) ?? [];
+  // --error-on vulnerable implies --audit
+  if (l.includes('vulnerable') && ctx.opts.audit === undefined) ctx.opts.audit = true;
   for (const x of l)
     if (!(ERROR_ON as readonly string[]).includes(x))
       throw new Error(`Unknown --error-on "${x}" (expected ${ERROR_ON.join(', ')})`);

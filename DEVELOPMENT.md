@@ -227,7 +227,7 @@ rule for `GITHUB_TOKEN` — which is why GitHub Packages is a second job of the 
 Notes:
 
 - The first release (no tags yet) is released at the current `package.json` version, whatever `version` you enter.
-- `version = current` only creates the Release (and publishes to GitHub Packages) for the version in `package.json`; its tag must already exist.
+- `version = current` releases the version already in `package.json`: its tag is created first if missing (use this for the first release), otherwise only the Release and the GitHub Packages publish are redone.
 - The release commit is pushed to `main` by `github-actions[bot]`; if `main` is protected, allow that push.
 - GitHub Packages uses the built-in `GITHUB_TOKEN` (no secret), and the package scope must equal the repository owner (`@ropean`).
   Installing from it needs a GitHub token with `read:packages`, even for public packages.

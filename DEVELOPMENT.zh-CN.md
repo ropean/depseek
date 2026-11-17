@@ -225,7 +225,7 @@ pnpm release --abort      # 放弃一个【尚未发布】的版本：还原 pac
 说明：
 
 - 首次发版（还没有任何 tag）会按 `package.json` 当前版本发布，不管 `version` 填什么。
-- `version = current` 只为 `package.json` 里的版本创建 Release 并发布到 GitHub Packages，且该 tag 必须已存在。
+- `version = current` 发布 `package.json` 里已有的版本：tag 不存在就先创建（第一次发版请用它），已存在则只重新做 Release 和 GitHub Packages 发布。
 - 发布提交由 `github-actions[bot]` 推送到 `main`；如果 `main` 开了分支保护，需要允许这次推送。
 - GitHub Packages 用内置的 `GITHUB_TOKEN`（无需 secret），包的 scope 必须等于仓库 owner（`@ropean`）。
   从它安装需要带 `read:packages` 权限的 GitHub token，即使是公开包。

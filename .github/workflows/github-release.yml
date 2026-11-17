@@ -5,8 +5,10 @@
 # Job 2 (`packages`) then publishes that tag to GitHub Packages (npm.pkg.github.com) with the built-in
 # GITHUB_TOKEN (no secret needed). The package scope must equal the repository owner (@ropean ↔ github.com/ropean).
 #
-# Input `version`: patch | minor | major | x.y.z (a first release at the current version ignores it), or
-# `current` to only create the Release for the version already in package.json (its tag must already exist).
+# Input `version`: patch | minor | major | x.y.z, or `current` to release the version already in package.json
+# (its tag is created first if it does not exist yet, e.g. for the very first release; otherwise only the
+# Release and the GitHub Packages publish are (re)done). A first release with no tags yet always uses the
+# current package.json version, whatever you enter.
 #
 # The tarball is attached twice (versioned name and version-less depseek.tgz), so this URL is stable:
 #   npm i -g https://github.com/<owner>/<repo>/releases/latest/download/depseek.tgz
@@ -63,11 +65,20 @@ jobs:
           fi
 
       - name: Bump, CHANGELOG, commit, tag and push
-        if: env.VERSION_INPUT != 'current'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          node scripts/release.mjs "$VERSION_INPUT" --ci --yes
+          if [ "$VERSION_INPUT" = "current" ]; then
+            VERSION=$(node -p "require('./package.json').version")
+            if git ls-remote --exit-code --tags origin "refs/tags/v$VERSION" >/dev/null; then
+              echo "Tag v$VERSION already exists; skipping the version/tag step."
+              exit 0
+            fi
+            # No bump: release the current version (checks, CHANGELOG, commit, tag, push).
+            node scripts/release.mjs --ci --yes
+          else
+            node scripts/release.mjs "$VERSION_INPUT" --ci --yes
+          fi
 
       - name: Resolve tag
         id: meta
@@ -75,7 +86,7 @@ jobs:
           VERSION=$(node -p "require('./package.json').version")
           TAG="v$VERSION"
           if ! git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null; then
-            echo "::error::Tag $TAG does not exist on the remote. Run this workflow with patch | minor | major | x.y.z."; exit 1
+            echo "::error::Tag $TAG does not exist on the remote after the version step."; exit 1
           fi
           # Build exactly what the tag points at (matters for `current`, when the branch is ahead of the tag).
           git checkout --detach "$TAG"

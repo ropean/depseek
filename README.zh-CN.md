@@ -32,6 +32,17 @@ ds up -i           # = depseek up -i
 
 需要 Node.js ≥ 22。
 
+### 从 GitHub Release 安装
+
+如果无法（或不想）使用 npm registry，每个 Release 都附带了打好的 tarball：
+
+```sh
+npm i -g https://github.com/ropean/depseek/releases/latest/download/depseek.tgz
+```
+
+这个地址始终指向最新版本。**更新时重新执行同一条命令即可**（`npm update -g` 不会跟踪 URL 方式安装的包）。
+要固定版本，使用 `https://github.com/ropean/depseek/releases/download/vX.Y.Z/depseek.tgz`。
+
 ## 快速上手
 
 ```sh

@@ -32,6 +32,17 @@ ds up -i           # = depseek up -i
 
 Requires Node.js ≥ 22.
 
+### Install from GitHub Releases
+
+If you can't (or don't want to) use the npm registry, every release also attaches the packed tarball:
+
+```sh
+npm i -g https://github.com/ropean/depseek/releases/latest/download/depseek.tgz
+```
+
+The URL always points at the newest release. **To update, run the same command again** — `npm update -g` does not
+track URL installs. To pin a version, use `https://github.com/ropean/depseek/releases/download/vX.Y.Z/depseek.tgz`.
+
 ## Quick start
 
 ```sh

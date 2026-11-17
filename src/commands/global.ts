@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import semver from 'semver';
 import type { Update } from '../analyze.js';
 import type { Ctx } from '../context.js';
 import { runCommand } from '../install.js';
@@ -48,6 +49,35 @@ export interface GlobalList {
   deps: Record<string, string>;
   /** Packages installed from a local path / link: upgrading them from the registry would replace the link. */
   linked: string[];
+  /** Packages installed from a URL / git repo (not the registry): name → { version, source }. */
+  external: Record<string, { version: string; source: string }>;
+}
+
+/** Registry tarballs look like `<registry>/<name>/-/<file>.tgz`; anything else was installed from a URL or git. */
+export function isExternalSource(resolved: string | undefined): resolved is string {
+  if (!resolved) return false;
+  if (/^(git\+|git:|github:|gitlab:|bitbucket:|ssh:)/.test(resolved)) return true;
+  return /^https?:\/\//.test(resolved) && !/\/-\/[^/]+\.tgz$/.test(resolved);
+}
+
+/** `https://github.com/o/r/releases/latest/download/x.tgz` → "o/r"; other sources can't be checked. */
+export function githubLatestRepo(source: string): string | undefined {
+  return /^https:\/\/github\.com\/([^/]+\/[^/]+)\/releases\/latest\/download\//.exec(source)?.[1];
+}
+
+/** Latest GitHub release version of `repo`, or undefined when it can't be determined. */
+export async function fetchGithubLatest(repo: string, doFetch: typeof fetch = fetch): Promise<string | undefined> {
+  try {
+    const res = await doFetch(`https://api.github.com/repos/${repo}/releases/latest`, {
+      headers: { accept: 'application/vnd.github+json' },
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!res.ok) return undefined;
+    const tag = ((await res.json()) as { tag_name?: string }).tag_name;
+    return tag ? (semver.valid(tag) ?? undefined) : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /** `npm ls -g --json` / `pnpm ls -g --json` dependencies → name → version; linked packages listed apart. */
@@ -58,12 +88,14 @@ export function parseLsJson(text: string): GlobalList {
   }[];
   const deps: Record<string, string> = {};
   const linked: string[] = [];
+  const external: GlobalList['external'] = {};
   for (const t of trees)
     for (const [name, d] of Object.entries(t.dependencies ?? {})) {
       if (d.resolved?.startsWith('file:') || d.resolved?.startsWith('link:')) linked.push(name);
+      else if (isExternalSource(d.resolved)) external[name] = { version: d.version ?? '?', source: d.resolved };
       else if (d.version) deps[name] = d.version;
     }
-  return { deps, linked };
+  return { deps, linked, external };
 }
 
 export async function listGlobal(pm: PackageManager): Promise<GlobalList> {
@@ -73,11 +105,12 @@ export async function listGlobal(pm: PackageManager): Promise<GlobalList> {
     case 'pnpm':
       return parseLsJson(await capture('pnpm', ['ls', '-g', '--depth=0', '--json']));
     case 'yarn':
-      return { deps: readGlobalDir((await capture('yarn', ['global', 'dir'])).trim()), linked: [] };
+      return { deps: readGlobalDir((await capture('yarn', ['global', 'dir'])).trim()), linked: [], external: {} };
     case 'bun':
       return {
         deps: readGlobalDir(join(process.env.BUN_INSTALL ?? join(homedir(), '.bun'), 'install', 'global')),
         linked: [],
+        external: {},
       };
   }
 }
@@ -120,12 +153,23 @@ export async function globalCommand(ctx: Ctx): Promise<number> {
   const pm = ((ctx.opts.packageManager as string | undefined) ?? 'npm') as PackageManager;
   if (!PMS.includes(pm)) throw new Error(`-g supports ${PMS.join(', ')} (got "${pm}")`);
   const conds = errorOn(ctx);
-  const { deps, linked } = await listGlobal(pm);
+  const { deps, linked, external } = await listGlobal(pm);
   const project = globalProject(pm, deps);
   if (ctx.opts.output !== 'json' && ctx.opts.output !== 'markdown') {
     ctx.out(paint('dim', `Checking ${Object.keys(deps).length} global ${pm} packages`));
     if (linked.length)
       ctx.out(paint('dim', `Skipping ${linked.length} linked from a local path: ${linked.join(', ')}`));
+    for (const [name, { version, source }] of Object.entries(external)) {
+      const repo = githubLatestRepo(source);
+      const latest = repo ? await fetchGithubLatest(repo) : undefined;
+      const [, args] = globalInstallCommand(pm, [source]);
+      if (latest && semver.valid(version) && semver.gt(latest, version))
+        ctx.out(
+          `${paint('warn', '↑')} ${name} ${version} → ${latest} ${paint('dim', `(GitHub ${repo}) reinstall: ${pm} ${args.join(' ')}`)}`,
+        );
+      else if (latest) ctx.out(paint('dim', `✓ ${name} ${version} is up to date (GitHub ${repo})`));
+      else ctx.out(paint('dim', `Skipping ${name}@${version}: installed from ${source} (not in the registry)`));
+    }
     ctx.out();
   }
   const selection = buildSelection({ ...ctx.opts, dep: 'prod', project: undefined, noRoot: false }, ctx.config);

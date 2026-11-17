@@ -122,10 +122,10 @@ describe('global packages', () => {
     const npm = JSON.stringify({
       dependencies: { a: { version: '1.0.0' }, b: { version: '2.0.0', resolved: 'file:../b' } },
     });
-    expect(parseLsJson(npm)).toEqual({ deps: { a: '1.0.0' }, linked: ['b'] });
+    expect(parseLsJson(npm)).toEqual({ deps: { a: '1.0.0' }, linked: ['b'], external: {} });
     const pnpm = JSON.stringify([{ path: '/g', dependencies: { c: { version: '3.0.0' } } }]);
-    expect(parseLsJson(pnpm)).toEqual({ deps: { c: '3.0.0' }, linked: [] });
-    expect(parseLsJson(JSON.stringify([{ path: '/g' }]))).toEqual({ deps: {}, linked: [] });
+    expect(parseLsJson(pnpm)).toEqual({ deps: { c: '3.0.0' }, linked: [], external: {} });
+    expect(parseLsJson(JSON.stringify([{ path: '/g' }]))).toEqual({ deps: {}, linked: [], external: {} });
   });
 
   it('builds a virtual project and the install command', () => {

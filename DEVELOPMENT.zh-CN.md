@@ -43,7 +43,7 @@ tsdown.config.ts      构建：库 → ESM + CJS + .d.mts/.d.cts；CLI → ESM �
 scripts/check.mjs     一键检查：lint · typecheck · format · test · build · exports
 scripts/smoke.mjs     打成 tarball → 装进临时项目 → 验证 import/require/类型/bin
 scripts/release.mjs   幂等发版：检查 → 发布 → CHANGELOG → commit → tag → push
-.github/workflows/    ci.yml（推 `ci` / `ci*` 分支）· publish-npm.yml（推 v* tag 时发布 npm + GitHub Release）· publish-github-packages.yml（推 v* tag 时发布到 GitHub Packages）
+.github/workflows/    ci.yml（推 `ci` / `ci*` 分支）· github-release.yml（GitHub Release + Packages）· publish-npm.yml（都在 Actions 里手动运行）
 ```
 
 ## 3. 常用命令
@@ -210,33 +210,29 @@ pnpm release --abort      # 放弃一个【尚未发布】的版本：还原 pac
   下次用 `pnpm release patch --force-bump` 跳过这个版本号。
 - **两个人同时发同一个版本**：后发的人会在“远端已有 tag”或“npm 已存在该版本”处停下，不会覆盖。
 
-### 5.4 CI 发版（可选，带 npm provenance 签名）
+### 5.4 通过 GitHub Actions 发版（无需本地命令）
 
-```bash
-pnpm release patch --ci   # 只做 bump + CHANGELOG + commit + tag + push，不在本地 publish
-```
+有两个相互独立的渠道，各是一个 workflow，都在 GitHub → Actions → 选择 workflow → **Run workflow** 里手动运行。
 
-推送 `v*` tag 会触发 `.github/workflows/publish-npm.yml`：校验 tag 与 `package.json` 版本一致 →
-check → smoke → `npm publish --provenance` → 创建 GitHub Release（内容取自 CHANGELOG）。
-如果该版本已在 npm 上（例如本地发过），会跳过 publish，只补 GitHub Release。
+| Workflow                      | 输入                                             | 作用                                                                                                                                                                                        |
+| ----------------------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `github-release.yml`          | `version`：`patch\|minor\|major\|x.y.z\|current` | Job 1：改 `package.json` 版本、更新 CHANGELOG、提交、打 tag、推送、打包并创建 GitHub Release（`depseek.tgz` + 带版本号的 `.tgz`）。Job 2：把该 tag 发布到 GitHub Packages。在 `main` 上运行 |
+| `publish-npm.yml`（暂不使用） | `tag`：已存在的 tag，如 `v0.0.1`                 | 带 provenance 把该 tag 发布到 npm；该版本已在 npm 上则跳过                                                                                                                                  |
 
-鉴权二选一：
+本地不再需要 `git tag` 或 `pnpm release --ci`：运行 **GitHub Release**，tag、Release 和 GitHub Packages 发布都在这一次运行里完成。
+（由 Actions 创建的 tag 不会触发其它 workflow，这是 GitHub 对 `GITHUB_TOKEN` 的规则，所以 GitHub Packages 是同一个 workflow 的第二个 job，而不是单独的 workflow。）
 
-- **Trusted Publishing（推荐，无需密钥）**：npmjs.com → 包 → Settings → Trusted Publisher →
-  GitHub Actions，填仓库名和 `publish-npm.yml`。包必须先存在，所以**第一个版本请在本地发**。
-- **Token**：npm 上创建 granular access token（勾选该包的 publish 权限），存到仓库 secret `NPM_TOKEN`。
+说明：
 
-CI 发布失败时（`pnpm release --status` 会显示“tag 已推送但 npm 上没有”）：
-
-| 原因                                                 | 处理                                                                              |
-| ---------------------------------------------------- | --------------------------------------------------------------------------------- |
-| 偶发问题（网络、npm 故障、runner 异常）              | GitHub → Actions → 失败的 Release → **Re-run jobs**；或 Run workflow 手动填 tag   |
-| 未配置 Trusted Publisher / `NPM_TOKEN` 过期 / 无权限 | 修好配置后 Re-run jobs                                                            |
-| 代码问题（例如 Windows 上测试失败）                  | 提交修复 → `pnpm release --ci --retag`：把**未发布**的 tag 移到新 HEAD 并重新推送 |
-| npm 上传成功但 job 报错                              | 工作流会先复查 npm，已存在即视为成功；Re-run 也只会补 GitHub Release              |
-| 不想要这个版本了                                     | `pnpm release --abort`（会删除远端未发布的 tag）                                  |
-
-同一个 tag 的发布工作流有并发锁，不会同时跑两个。
+- 首次发版（还没有任何 tag）会按 `package.json` 当前版本发布，不管 `version` 填什么。
+- `version = current` 只为 `package.json` 里的版本创建 Release 并发布到 GitHub Packages，且该 tag 必须已存在。
+- 发布提交由 `github-actions[bot]` 推送到 `main`；如果 `main` 开了分支保护，需要允许这次推送。
+- GitHub Packages 用内置的 `GITHUB_TOKEN`（无需 secret），包的 scope 必须等于仓库 owner（`@ropean`）。
+  从它安装需要带 `read:packages` 权限的 GitHub token，即使是公开包。
+- 使用者可通过 `npm i -g https://github.com/ropean/depseek/releases/latest/download/depseek.tgz` 从 Release 安装。
+- npm 鉴权（`publish-npm.yml` 用），二选一：**Trusted Publishing**（npmjs.com → 包 → Settings → Trusted Publisher →
+  GitHub Actions，填仓库名和 `publish-npm.yml`；包必须先存在，所以第一次 npm 发布要在本地做一次）或把 granular token 存为仓库 secret `NPM_TOKEN`。
+- 失败的 job 直接 Re-run 即可（已存在的版本会被跳过）。
 
 ### 5.5 发错了怎么办（已经发布的版本有问题）
 

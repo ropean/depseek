@@ -43,7 +43,7 @@ tsdown.config.ts      build: library → ESM + CJS + .d.mts/.d.cts; CLI → sing
 scripts/check.mjs     one-shot check: lint · typecheck · format · test · build · exports
 scripts/smoke.mjs     pack a tarball → install into a temp project → verify import/require/types/bin
 scripts/release.mjs   idempotent release: check → publish → CHANGELOG → commit → tag → push
-.github/workflows/    ci.yml (pushes to `ci` / `ci*` branches) · publish-npm.yml (npm + GitHub Release on v* tags) · publish-github-packages.yml (GitHub Packages on v* tags)
+.github/workflows/    ci.yml (pushes to `ci` / `ci*` branches) · github-release.yml (GitHub Release + Packages) · publish-npm.yml (both run manually from Actions)
 ```
 
 ## 3. Common commands
@@ -211,33 +211,31 @@ The script prints a prominent **`IS ALREADY ON NPM … Do not bump again`**. Do 
   next time use `pnpm release patch --force-bump` to skip that version number.
 - **Two people releasing the same version at once**: whoever is second stops at "remote tag exists" or "version already on npm"; nothing is overwritten.
 
-### 5.4 Releasing from CI (optional, with npm provenance)
+### 5.4 Releasing from GitHub Actions (no local commands)
 
-```bash
-pnpm release patch --ci   # only bump + CHANGELOG + commit + tag + push; no local publish
-```
+There are two independent channels, each its own workflow, run from GitHub → Actions → the workflow → **Run workflow**.
 
-Pushing a `v*` tag triggers `.github/workflows/publish-npm.yml`: verify the tag matches the `package.json` version →
-check → smoke → `npm publish --provenance` → create a GitHub Release (body taken from the CHANGELOG).
-If the version is already on npm (e.g. published locally), publish is skipped and only the GitHub Release is created.
+| Workflow                           | Input                                            | What it does                                                                                                                                                                                                            |
+| ---------------------------------- | ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `github-release.yml`               | `version`: `patch\|minor\|major\|x.y.z\|current` | Job 1: bumps `package.json`, updates CHANGELOG, commits, tags, pushes, packs the tarball and creates the GitHub Release (`depseek.tgz` + versioned `.tgz`). Job 2: publishes that tag to GitHub Packages. Run on `main` |
+| `publish-npm.yml` (unused for now) | `tag`: an existing tag, e.g. `v0.0.1`            | Publishes that tag to npm with provenance; skipped if the version is already on npm                                                                                                                                     |
 
-Pick one authentication method:
+You never need `git tag` or `pnpm release --ci` locally: run **GitHub Release** and both the tag, the Release and the
+GitHub Packages publish happen in that one run. (A tag created by Actions does not trigger other workflows — a GitHub
+rule for `GITHUB_TOKEN` — which is why GitHub Packages is a second job of the same workflow instead of a separate one.)
 
-- **Trusted Publishing (recommended, no secrets)**: npmjs.com → package → Settings → Trusted Publisher →
-  GitHub Actions, enter the repository name and `publish-npm.yml`. The package must already exist, so **publish the first version locally**.
-- **Token**: create a granular access token on npm (with publish rights for this package) and store it as the repository secret `NPM_TOKEN`.
+Notes:
 
-When the CI release fails (`pnpm release --status` shows "tag pushed but not on npm"):
-
-| Cause                                                                  | Handling                                                                                                              |
-| ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| Transient problem (network, npm outage, runner failure)                | GitHub → Actions → the failed Release → **Re-run jobs**; or Run workflow and enter the tag                            |
-| Trusted Publisher not configured / `NPM_TOKEN` expired / no permission | Fix the configuration, then Re-run jobs                                                                               |
-| Code problem (e.g. tests fail on Windows)                              | Commit the fix → `pnpm release --ci --retag`: moves the **unpublished** tag to the new HEAD and pushes it again       |
-| npm upload succeeded but the job errored                               | The workflow re-checks npm first; an existing version counts as success, and a re-run only creates the GitHub Release |
-| You no longer want this version                                        | `pnpm release --abort` (deletes the unpublished remote tag)                                                           |
-
-The release workflow holds a concurrency lock per tag, so two runs never overlap.
+- The first release (no tags yet) is released at the current `package.json` version, whatever `version` you enter.
+- `version = current` only creates the Release (and publishes to GitHub Packages) for the version in `package.json`; its tag must already exist.
+- The release commit is pushed to `main` by `github-actions[bot]`; if `main` is protected, allow that push.
+- GitHub Packages uses the built-in `GITHUB_TOKEN` (no secret), and the package scope must equal the repository owner (`@ropean`).
+  Installing from it needs a GitHub token with `read:packages`, even for public packages.
+- Users install from the Release with `npm i -g https://github.com/ropean/depseek/releases/latest/download/depseek.tgz`.
+- npm authentication (for `publish-npm.yml`), pick one: **Trusted Publishing** (npmjs.com → package → Settings → Trusted Publisher →
+  GitHub Actions, repository name and `publish-npm.yml`; the package must already exist, so the first npm publish is done once locally)
+  or a granular token stored as the repository secret `NPM_TOKEN`.
+- Each workflow holds a concurrency lock where needed, and a failed job can simply be re-run (an existing version is skipped).
 
 ### 5.5 A published version is broken
 

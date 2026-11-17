@@ -45,7 +45,7 @@ tsdown.config.ts      构建：库 → ESM + CJS + .d.mts/.d.cts；CLI → ESM �
 scripts/check.mjs     一键检查：lint · typecheck · format · test · build · exports
 scripts/smoke.mjs     打成 tarball → 装进临时项目 → 验证 import/require/类型/bin
 scripts/release.mjs   幂等发版：检查 → 发布 → CHANGELOG → commit → tag → push
-.github/workflows/    ci.yml（推 `ci` / `ci*` 分支）· release.yml（推 v* tag 时发布）
+.github/workflows/    ci.yml（推 `ci` / `ci*` 分支）· publish-npm.yml（推 v* tag 时发布 npm + GitHub Release）· publish-github-packages.yml（推 v* tag 时发布到 GitHub Packages）
 ```
 
 ## 3. 常用命令

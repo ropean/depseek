@@ -1,12 +1,18 @@
-# Publishes to npm when a v* tag is pushed (e.g. by `pnpm release patch --ci`).
+# Publishes to npm (and creates the GitHub Release) when a v* tag is pushed (e.g. by `pnpm release patch --ci`).
 # If the version is already on npm (released locally with `pnpm release`), the publish step is skipped.
 #
 # Auth — pick one:
 #   A. Trusted publishing (recommended, no secret): on npmjs.com → package → Settings →
-#      Trusted Publisher → GitHub Actions, repo = <owner>/<repo>, workflow = release.yml.
+#      Trusted Publisher → GitHub Actions, repo = <owner>/<repo>, workflow = publish-npm.yml.
 #      (The package must exist first: do the very first publish locally.)
 #   B. Token: add an npm "Automation"/granular token as the repo secret NPM_TOKEN.
-name: Release
+#
+# The packed tarball is always attached to the GitHub Release, twice: as <scope>-<name>-X.Y.Z.tgz and as the
+# version-less depseek.tgz, so the stable "latest" URL works for install and update:
+#   npm i -g https://github.com/<owner>/<repo>/releases/latest/download/depseek.tgz
+# Set the repository variable SKIP_NPM_PUBLISH=true (Settings → Variables) to skip the npm publish step and only
+# create the GitHub Release (e.g. while the npm account is unavailable).
+name: Publish to npm
 
 on:
   push:
@@ -37,6 +43,8 @@ jobs:
           ref: ${{ env.TAG }}
           fetch-depth: 0
       - uses: pnpm/action-setup@v4
+        with:
+          version: 10 # package.json has no `packageManager` field, so pin the pnpm major here
       - uses: actions/setup-node@v5
         with:
           node-version: 24
@@ -72,7 +80,7 @@ jobs:
         if: steps.meta.outputs.published == 'false'
 
       - name: Publish
-        if: steps.meta.outputs.published == 'false'
+        if: steps.meta.outputs.published == 'false' && vars.SKIP_NPM_PUBLISH != 'true'
         run: |
           NAME=$(node -p "require('./package.json').name"); VERSION=$(node -p "require('./package.json').version")
           for attempt in 1 2 3; do
@@ -91,14 +99,30 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
+      - name: Pack tarball
+        id: pack
+        run: |
+          pnpm run build
+          mkdir -p "$RUNNER_TEMP/pack"
+          pnpm pack --pack-destination "$RUNNER_TEMP/pack"
+          FILE=$(ls "$RUNNER_TEMP"/pack/*.tgz)
+          # Version-less copy so that .../releases/latest/download/depseek.tgz never changes.
+          cp "$FILE" "$RUNNER_TEMP/pack/depseek.tgz"
+          echo "file=$FILE" >> "$GITHUB_OUTPUT"
+          echo "latest=$RUNNER_TEMP/pack/depseek.tgz" >> "$GITHUB_OUTPUT"
+
       - name: GitHub Release
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
           # Pull this version's section out of CHANGELOG.md
           awk -v v="## $TAG " 'index($0, v)==1 {f=1; next} /^## v/ {f=0} f' CHANGELOG.md > notes.md || true
           [ -s notes.md ] || echo "Release $TAG" > notes.md
-          gh release view "$TAG" >/dev/null 2>&1 || \
-            gh release create "$TAG" --title "$TAG" --notes-file notes.md \
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$PACK_FILE" "$PACK_LATEST" --clobber
+          else
+            gh release create "$TAG" "$PACK_FILE" "$PACK_LATEST" --title "$TAG" --notes-file notes.md \
               $([ "${{ steps.meta.outputs.prerelease }}" = "true" ] && echo --prerelease)
+          fi
         env:
           GH_TOKEN: ${{ github.token }}
+          PACK_FILE: ${{ steps.pack.outputs.file }}
+          PACK_LATEST: ${{ steps.pack.outputs.latest }}

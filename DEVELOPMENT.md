@@ -219,14 +219,14 @@ The script prints a prominent **`IS ALREADY ON NPM … Do not bump again`**. Do 
 pnpm release patch --ci   # only bump + CHANGELOG + commit + tag + push; no local publish
 ```
 
-Pushing a `v*` tag triggers `.github/workflows/release.yml`: verify the tag matches the `package.json` version →
+Pushing a `v*` tag triggers `.github/workflows/publish-npm.yml`: verify the tag matches the `package.json` version →
 check → smoke → `npm publish --provenance` → create a GitHub Release (body taken from the CHANGELOG).
 If the version is already on npm (e.g. published locally), publish is skipped and only the GitHub Release is created.
 
 Pick one authentication method:
 
 - **Trusted Publishing (recommended, no secrets)**: npmjs.com → package → Settings → Trusted Publisher →
-  GitHub Actions, enter the repository name and `release.yml`. The package must already exist, so **publish the first version locally**.
+  GitHub Actions, enter the repository name and `publish-npm.yml`. The package must already exist, so **publish the first version locally**.
 - **Token**: create a granular access token on npm (with publish rights for this package) and store it as the repository secret `NPM_TOKEN`.
 
 When the CI release fails (`pnpm release --status` shows "tag pushed but not on npm"):

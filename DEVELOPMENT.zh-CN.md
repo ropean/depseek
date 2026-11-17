@@ -218,14 +218,14 @@ pnpm release --abort      # 放弃一个【尚未发布】的版本：还原 pac
 pnpm release patch --ci   # 只做 bump + CHANGELOG + commit + tag + push，不在本地 publish
 ```
 
-推送 `v*` tag 会触发 `.github/workflows/release.yml`：校验 tag 与 `package.json` 版本一致 →
+推送 `v*` tag 会触发 `.github/workflows/publish-npm.yml`：校验 tag 与 `package.json` 版本一致 →
 check → smoke → `npm publish --provenance` → 创建 GitHub Release（内容取自 CHANGELOG）。
 如果该版本已在 npm 上（例如本地发过），会跳过 publish，只补 GitHub Release。
 
 鉴权二选一：
 
 - **Trusted Publishing（推荐，无需密钥）**：npmjs.com → 包 → Settings → Trusted Publisher →
-  GitHub Actions，填仓库名和 `release.yml`。包必须先存在，所以**第一个版本请在本地发**。
+  GitHub Actions，填仓库名和 `publish-npm.yml`。包必须先存在，所以**第一个版本请在本地发**。
 - **Token**：npm 上创建 granular access token（勾选该包的 publish 权限），存到仓库 secret `NPM_TOKEN`。
 
 CI 发布失败时（`pnpm release --status` 会显示“tag 已推送但 npm 上没有”）：

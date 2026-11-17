@@ -12,7 +12,7 @@
 // Flags:
 //   --yes            skip confirmation prompts (required when not in a TTY)
 //   --ci             don't publish locally: bump + changelog + commit + tag + push, and let
-//                    .github/workflows/release.yml publish from the tag (npm provenance)
+//                    .github/workflows/publish-npm.yml publish from the tag (npm provenance)
 //   --retag          (--ci) CI failed and you committed a fix: move the unpublished tag to HEAD and re-push it
 //   --tag=<name>     npm dist-tag (default: "latest", or the preid / "next" for prereleases)
 //   --otp=<code>     npm 2FA one-time password (otherwise you're prompted when npm asks for one)
@@ -660,7 +660,8 @@ async function main() {
 
   console.log(`\n✓ ${PKG_NAME}@${target} released${CI_MODE ? ' (tag pushed — CI will publish)' : ''}.`);
   if (REGISTRY.includes('registry.npmjs.org')) console.log(`  https://www.npmjs.com/package/${PKG_NAME}/v/${target}`);
-  if (CI_MODE) console.log('  Follow it in GitHub → Actions → Release. Check later with `pnpm release --status`.');
+  if (CI_MODE)
+    console.log('  Follow it in GitHub → Actions → Publish to npm. Check later with `pnpm release --status`.');
 }
 
 let interrupted = false;

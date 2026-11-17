@@ -29,11 +29,9 @@ pnpm run check
 
 ### Package manager version
 
-- `packageManager` in `package.json` (e.g. `pnpm@10.33.0`) is **for developers**: it pins the pnpm version used in this repo so the lock file stays stable. It must be an exact version.
-- Any locally installed pnpm ≥ 9.7 works: pnpm downloads and switches to the version in `packageManager` automatically (`manage-package-manager-versions`, on by default in pnpm 10). `corepack enable` works too. `pnpm/action-setup` in CI reads the same field.
-- `devEngines.packageManager` declares "pnpm ≥ 10 required" with `onFail: warn`: installing with npm / yarn in this repo prints a warning but is not blocked.
-- **Users are not affected**: `npm i -g @ropean/depseek`, `pnpm add -g`, `bun add -g` and `npx` all ignore both fields.
-- To upgrade this repo's pnpm: `node dist/cli.mjs up pnpm@<version> --dep packageManager` (depseek can edit itself), then `pnpm install` to confirm the lock file is unchanged.
+- `package.json` deliberately has **no** `packageManager` / `devEngines` field. Use pnpm 10 locally (`pnpm -v`); the lock file format depends on the pnpm major.
+- CI pins the major in `pnpm/action-setup` (`version: 10`, in each workflow under `.github/workflows/`). When you move to a new pnpm major, change it there and re-run `pnpm install`.
+- **Users are not affected**: installing with `npm`, `pnpm`, `bun` or `npx` is independent of the pnpm used for development.
 
 ## 2. Layout
 

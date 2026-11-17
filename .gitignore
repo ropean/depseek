@@ -23,7 +23,7 @@ __snapshots__/*.snap.new
 .smoke/
 
 # ── Package managers ────────────────────────────────────────────────────────
-# This repo uses pnpm (see "packageManager" in package.json); pnpm-lock.yaml is
+# This repo uses pnpm (pnpm 10; see DEVELOPMENT.md); pnpm-lock.yaml is
 # the only lock file that belongs here. Ignore the others so that running
 # npm / yarn / bun by accident does not commit a second lock file.
 package-lock.json

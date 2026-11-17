@@ -26,7 +26,7 @@ Guidance for Claude Code (and other contributors) working in this repository.
 ## Project
 
 - `@ropean/depseek`: a CLI (`depseek` / `ds`) plus a library. TypeScript, ESM source, built with tsdown to ESM + CJS.
-- Node.js ≥ 22, pnpm (version pinned in `packageManager`).
+- Node.js ≥ 22, pnpm 10 (no `packageManager` field; CI pins the major in `pnpm/action-setup`).
 - Key commands: `pnpm test`, `pnpm lint`, `pnpm typecheck`, `pnpm format`, `pnpm run check`, `pnpm smoke`.
 - Conventions (commits, versioning, dependencies, releases): see [DEVELOPMENT.md](./DEVELOPMENT.md)
   ([简体中文](./DEVELOPMENT.zh-CN.md)). Requirements: [docs/SPEC.md](./docs/SPEC.md) ([简体中文](./docs/SPEC.zh-CN.md)).

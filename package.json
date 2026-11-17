@@ -69,23 +69,15 @@
   "engines": {
     "node": ">=22"
   },
-  "devEngines": {
-    "packageManager": {
-      "name": "pnpm",
-      "version": ">=10.0.0",
-      "onFail": "warn"
-    }
-  },
   "publishConfig": {
-    "oxfmt": "0.79.0",
     "access": "public",
     "registry": "https://registry.npmjs.org/"
   },
-  "packageManager": "pnpm@10.33.0",
   "devDependencies": {
     "@arethetypeswrong/cli": "0.18.5",
     "@types/node": "22.20.5",
     "@types/semver": "7.7.0",
+    "oxfmt": "0.79.0",
     "oxlint": "1.93.0",
     "publint": "0.3.25",
     "tsdown": "0.23.7",

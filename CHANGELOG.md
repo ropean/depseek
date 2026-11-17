@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.0.2 - 2026-11-17
+
+### Features
+
+- detect globals installed from GitHub / URL
+
+### Chores
+
+- upgrade GitHub Actions to the Node 24 majors
+
 ## v0.0.1 - 2026-11-17
 
 ### Features

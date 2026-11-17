@@ -1,6 +1,6 @@
 {
   "name": "@ropean/depseek",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Scan every package.json under a directory, find cross-project version conflicts and outdated deps, and update them in one go.",
   "keywords": [
     "dependencies",

@@ -51,8 +51,8 @@
     "test:watch": "vitest",
     "lint": "oxlint --deny-warnings src",
     "typecheck": "tsc --noEmit",
-    "format": "prettier --write .",
-    "format:check": "prettier --check .",
+    "format": "oxfmt --write .",
+    "format:check": "oxfmt --check .",
     "check:exports": "publint --strict && attw --pack . --profile node16",
     "check": "node scripts/check.mjs",
     "smoke": "node scripts/smoke.mjs",
@@ -77,6 +77,7 @@
     }
   },
   "publishConfig": {
+    "oxfmt": "0.79.0",
     "access": "public",
     "registry": "https://registry.npmjs.org/"
   },
@@ -86,7 +87,6 @@
     "@types/node": "22.20.5",
     "@types/semver": "7.7.0",
     "oxlint": "1.93.0",
-    "prettier": "3.10.1",
     "publint": "0.3.25",
     "tsdown": "0.23.7",
     "typescript": "7.0.2",

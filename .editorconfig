@@ -1,6 +1,6 @@
 # https://editorconfig.org — shared editor settings for every platform and IDE.
 # Files are UTF-8 (no BOM) with LF line endings; .gitattributes enforces the
-# same line endings in git, and Prettier (`endOfLine: "lf"`) in formatting.
+# same line endings in git, and oxfmt (`endOfLine: "lf"`) in formatting.
 root = true
 
 [*]

@@ -12,7 +12,16 @@ import { candidates, diffLevel, pickTarget, resolveRange, type Level } from './v
 
 /** `fixes` is informational: the upgrade resolves a known vulnerability. */
 export type WarningType =
-  'peer' | 'engines' | 'deprecated' | 'license' | 'vulnerable' | 'fixes' | 'group' | 'types' | 'override' | 'owner';
+  | 'peer'
+  | 'engines'
+  | 'deprecated'
+  | 'license'
+  | 'vulnerable'
+  | 'fixes'
+  | 'group'
+  | 'types'
+  | 'override'
+  | 'owner';
 
 export interface Warning {
   type: WarningType;

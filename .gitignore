@@ -61,7 +61,6 @@ bun.lockb
 .cache/
 .eslintcache
 .stylelintcache
-.prettiercache
 .oxlintcache
 .turbo/
 .parcel-cache/

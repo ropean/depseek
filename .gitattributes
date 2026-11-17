@@ -1,6 +1,6 @@
 # Normalise line endings on every platform.
 # Everything detected as text is stored in the repo with LF and checked out
-# with LF (also on Windows, regardless of core.autocrlf), so Prettier's
+# with LF (also on Windows, regardless of core.autocrlf), so oxfmt's
 # `endOfLine: "lf"`, shebangs in bin scripts and snapshot tests behave the same
 # everywhere. Files must be UTF-8 without BOM (see .editorconfig).
 * text=auto eol=lf
@@ -30,8 +30,7 @@
 .gitattributes text eol=lf
 .gitignore    text eol=lf
 .npmrc        text eol=lf
-.prettierrc*  text eol=lf
-.prettierignore text eol=lf
+.oxfmtrc*     text eol=lf
 LICENSE       text eol=lf
 
 # Windows batch scripts must keep CRLF to run correctly in cmd.exe.

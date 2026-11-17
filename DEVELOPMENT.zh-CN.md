@@ -57,7 +57,7 @@ scripts/release.mjs   幂等发版：检查 → 发布 → CHANGELOG → commit 
 | `pnpm test`           | 跑单测；`pnpm test:watch` 监听模式                             |
 | `pnpm lint`           | oxlint                                                         |
 | `pnpm typecheck`      | `tsc --noEmit`                                                 |
-| `pnpm format`         | prettier 格式化全部文件                                        |
+| `pnpm format`         | oxfmt 格式化全部文件                                           |
 | `pnpm check:exports`  | publint + are-the-types-wrong，检查 `exports`/类型声明是否正确 |
 | `pnpm check`          | 以上全部，逐项打印 PASS/FAIL（`--bail` 遇错即停）              |
 | `pnpm smoke`          | 模拟真实安装的冒烟测试（`--keep` 保留临时项目方便排查）        |
@@ -254,7 +254,7 @@ npm unpublish @ropean/xxx@1.2.3                             # 仅 72 小时内�
 
 - **语言**：代码、注释、commit message 和文档默认使用英文。文档的中文版放在英文文件旁边，后缀为 `.zh-CN.md`（见 [CLAUDE.md](./CLAUDE.md)）。
 - **文件编码**：UTF-8（无 BOM），换行符 LF（仅 `.bat` / `.cmd` 用 CRLF），由 `.editorconfig`、`.gitattributes`
-  和 Prettier（`endOfLine: "lf"`）在各平台上统一保证。
+  和 oxfmt（`endOfLine: "lf"`）在各平台上统一保证。
 - **Commit message** 用 conventional commits（`feat:`、`fix:`、`perf:`、`refactor:`、`docs:`、
   `chore:`，破坏性变更加 `!`，如 `feat!: drop node 20`），CHANGELOG 按此自动分组。
 - **版本号**：`0.x` 阶段 minor 可以有破坏性变更；稳定后严格 semver。

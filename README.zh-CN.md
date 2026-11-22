@@ -30,6 +30,8 @@ ds                 # = depseek
 ds up -i           # = depseek up -i
 ```
 
+`ds -h` 显示命令列表和最常用的选项；`ds <命令> -h`（或 `ds help <命令>`）显示单个命令的选项，`ds -h --all` 列出全部选项。
+
 需要 Node.js ≥ 22。
 
 ### 从 GitHub Release 安装

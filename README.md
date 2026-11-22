@@ -30,6 +30,8 @@ ds                 # = depseek
 ds up -i           # = depseek up -i
 ```
 
+`ds -h` shows the commands and the most common options; `ds <command> -h` (or `ds help <command>`) shows one command's options, and `ds -h --all` lists every option.
+
 Requires Node.js ≥ 22.
 
 ### Install from GitHub Releases

@@ -12,6 +12,7 @@ import { undoCommand } from './commands/undo.js';
 import { splitDirsAndPackages, upCommand } from './commands/up.js';
 import { treeCommand } from './commands/tree.js';
 import { createContext, type Ctx } from './context.js';
+import { isHelpTopic, renderHelp } from './help.js';
 import { applyNcurc, findNcurc, NCU_UNSUPPORTED, normalizeNcuOptions, readNcurc } from './ncu.js';
 
 const OPTIONS: Record<string, OptSpec> = {
@@ -100,6 +101,7 @@ const OPTIONS: Record<string, OptSpec> = {
   yes: { type: 'boolean', short: 'y' },
   force: { type: 'boolean' },
   help: { type: 'boolean', short: 'h' },
+  all: { type: 'boolean' },
   version: { type: 'boolean', short: 'v' },
   // ncu options that are recognised but not implemented (clear error instead of "unknown option")
   ...Object.fromEntries(
@@ -108,88 +110,6 @@ const OPTIONS: Record<string, OptSpec> = {
 };
 
 const COMMANDS = ['check', 'up', 'conflicts', 'format', 'ls', 'tree', 'undo', 'doctor', 'init'] as const;
-
-const HELP: string = `depseek ${pkg.version} — find version conflicts and updates across every package.json
-
-Usage (ds is a short alias of depseek)
-  depseek [dir...] [pkg...] [options] check for updates (read-only); pkg names/globs//regex/ filter
-  depseek up [pkg[@ver]...] [dir...]  update (same as -u); pkg@ver pins every project to it
-  depseek conflicts [pkg...]          versions that differ between projects (--fix to align)
-  depseek format --to <fmt> [dir...]  rewrite version prefixes only (--from-lock: use installed)
-  depseek ls [pkg...]                 which projects use a dependency, with which version
-  depseek tree [dir...]               show where package.json files are, as a tree
-  depseek undo [id] [--list]          restore package.json files from the last write
-  depseek doctor [--test <cmd>]       upgrade one package at a time, keep it only if tests pass
-  depseek init                        create depseek.config.json
-
-Checking
-  -t, --target <t>                    latest | minor | patch | semver | greatest | newest | @<tag>
-  -f, --filter <p> / -x, --reject <p> package names: list, globs (@types/*) or /regex/
-  --dep <types>                       prod,dev,peer,optional,overrides,packageManager,devEngines
-                                      (default prod,dev,optional,packageManager)
-  --project <glob>                    only package.json files whose path or name matches
-  --level <levels>                    patch,minor,major,prerelease
-  -c, --cooldown <period>             ignore versions newer than 7 (days), 7d, 12h or 30m
-  -m, --minimal                       skip versions the current range already allows
-  --peer                              only versions whose peer dependencies fit the project (both ways)
-  --engines-node                      only versions whose engines.node covers the project's engines.node
-  --pre <0|1>                         include prereleases for latest / minor / patch targets
-  --filter-version / --reject-version only / never dependencies whose written version matches
-  --owner-changed                     warn when a different npm account published the target version
-  --pin-wildcards                     also resolve "*", "x" and "latest" to a concrete version
-  --group-by <g>                      package | project | level (default package)
-  --audit                             check current versions against OSV vulnerability data
-  --error-on <cond>                   exit 1 on outdated | major | deprecated | peer | conflicts | vulnerable | owner
-  -e, --error-level <n>               1: exit 0 unless errors · 2: exit 1 when anything is outdated
-  -r, --registry <url>                registry to query (default: from .npmrc / bunfig.toml)
-  --concurrency <n>                   parallel registry requests (default 16)
-  --retry <n> / --timeout <ms>        registry request retries (default 3) and timeout (default 60000)
-  --no-cache / --cache-clear          ignore / delete the 10-minute metadata cache
-
-Conflicts
-  --fix                               align conflicting versions
-  --align <a>                         highest | lowest | most-used | latest | <version> (default highest)
-  --allow-major                       allow aligning across major versions
-
-Writing
-  -u, --upgrade                       write changes to package.json
-  -i, --interactive                   pick updates in a full-screen list
-  --interactive-select <s>            preselect auto | none | patch | minor | all (default auto)
-  -n, --dry-run                       only print the diff
-  --format <f>                        exact | tilde | caret | preserve | gte | x-range
-                                      default exact: ^1.2.3 → 1.5.0 (ncu keeps ^; use preserve for that)
-  --remove-range                      same as --format exact
-  --no-diff                           don't print the diff before writing
-  --install <mode>                    always | prompt | never (default prompt)
-  -p, --package-manager <pm>          npm | pnpm | yarn | bun — use it for every install
-  --no-git-check                      allow writing files with uncommitted changes
-  --commit[=level]                    git commit the changes (one commit per level with =level)
-  -d, --doctor                        same as \`depseek doctor\`; --doctor-test / --doctor-install <cmd>
-  -y, --yes                           assume yes for prompts
-
-Scanning (always recursive; ncu's --deep / -w / --workspaces are accepted)
-  --no-recursive / --depth <n>        only the given directories / limit the depth
-  --workspace <name> / --no-root      only these workspaces / leave out the workspace root
-  --package-file <glob>               ncu-style file selection, e.g. 'apps/*/package.json'
-  -g, --global                        global packages of -p npm (default) | pnpm | yarn | bun
-  --include <glob> / --exclude <glob> limit scan scope (repeatable)
-  --no-gitignore                      don't honour .gitignore files
-  --no-default-ignore                 also scan node_modules-free defaults like fixtures/, examples/
-  --follow-symlinks                   follow symbolic links (off by default)
-  --list-files [--tree]               only list the package.json files found
-  --ascii                             draw trees with ASCII characters
-
-Output
-  -o, --output <fmt>                  table | json | markdown
-  -j, --json-all / --json-deps / --json-upgraded   ncu-compatible JSON
-  -s, --silent / -l, --loglevel <l>   no output / silent | error | warn | info | verbose
-  --theme <name> / --color            default | dark | light | colorblind | mono / force colours
-  --config <path>                     depseek config (default: auto-detect)
-  --config-file-name / --config-file-path   ncu config (.ncurc*, read automatically; --no-ncurc to skip)
-  -h, --help / -v, --version
-
-Long options also work in ncu's camelCase (--errorLevel, --jsonUpgraded, --packageManager …).
-`;
 
 export async function main(argv: string[]): Promise<number> {
   let parsed;
@@ -207,8 +127,16 @@ export async function main(argv: string[]): Promise<number> {
     process.stdout.write(`${pkg.version}\n`);
     return 0;
   }
-  if (opts.help) {
-    process.stdout.write(HELP);
+  // `ds -h`, `ds -h --all`, `ds <command> -h`, `ds help [command|all]`
+  const helpCmd = positionals[0] === 'help';
+  if (opts.help || helpCmd) {
+    const arg = positionals[helpCmd ? 1 : 0];
+    if (helpCmd && arg && arg !== 'all' && !isHelpTopic(arg)) {
+      process.stderr.write(`depseek: unknown command "${arg}"\nRun "depseek --help" for usage.\n`);
+      return 2;
+    }
+    const topic = opts.all || arg === 'all' ? 'all' : arg && isHelpTopic(arg) ? arg : undefined;
+    process.stdout.write(renderHelp(pkg.version, topic));
     return 0;
   }
   const cwd = opts.cwd ? resolve(String(opts.cwd)) : process.cwd();

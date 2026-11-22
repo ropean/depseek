@@ -1,0 +1,57 @@
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { COMMAND_HELP, renderHelp } from './help.js';
+import { main } from './main.js';
+
+async function run(...argv: string[]): Promise<{ code: number; out: string; err: string }> {
+  let out = '';
+  let err = '';
+  vi.spyOn(process.stdout, 'write').mockImplementation((s) => ((out += String(s)), true));
+  vi.spyOn(process.stderr, 'write').mockImplementation((s) => ((err += String(s)), true));
+  const code = await main(argv);
+  vi.restoreAllMocks();
+  return { code, out, err };
+}
+
+afterEach(() => vi.restoreAllMocks());
+
+describe('help', () => {
+  it('-h fits on one screen and lists every command', async () => {
+    const { code, out } = await run('-h');
+    expect(code).toBe(0);
+    expect(out.split('\n').length).toBeLessThanOrEqual(32);
+    for (const name of Object.keys(COMMAND_HELP).filter((n) => n !== 'check')) expect(out).toContain(`depseek ${name}`);
+    expect(out).toContain('depseek -h --all');
+    expect(out).not.toContain('--allow-major');
+  });
+
+  it('`help` with no topic is the same as -h', async () => {
+    expect((await run('help')).out).toBe((await run('-h')).out);
+  });
+
+  it('-h --all and `help all` print every option', async () => {
+    const all = (await run('-h', '--all')).out;
+    expect((await run('help', 'all')).out).toBe(all);
+    for (const o of ['--allow-major', '--from-lock', '--doctor-install', '--follow-symlinks', '--json-upgraded'])
+      expect(all).toContain(o);
+  });
+
+  it('<command> -h and `help <command>` show only that command', async () => {
+    const conflicts = (await run('conflicts', '-h')).out;
+    expect((await run('help', 'conflicts')).out).toBe(conflicts);
+    expect(conflicts).toContain('Usage: depseek conflicts');
+    expect(conflicts).toContain('--align');
+    expect(conflicts).not.toContain('--target');
+    expect((await run('ls', '--help')).out).not.toContain('--fix');
+  });
+
+  it('every command renders', () => {
+    for (const name of Object.keys(COMMAND_HELP) as (keyof typeof COMMAND_HELP)[])
+      expect(renderHelp('0.0.0', name)).toContain(COMMAND_HELP[name].usage);
+  });
+
+  it('`help <unknown>` exits 2', async () => {
+    const { code, err } = await run('help', 'nope');
+    expect(code).toBe(2);
+    expect(err).toContain('unknown command "nope"');
+  });
+});

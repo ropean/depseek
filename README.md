@@ -68,6 +68,7 @@ depseek undo                              # restore the last write
 | `depseek conflicts [pkg...]`         | List version conflicts; `--fix` aligns them                                |
 | `depseek format --to <fmt>`          | Change the version style only, no upgrade; `--from-lock` uses lock files   |
 | `depseek ls [pkg...]`                | Which projects use a dependency, and at which version (and installed)      |
+| `depseek unused [pkg...]`            | Dependencies no source file, script or config refers to (exit 1 if any)    |
 | `depseek tree [dir...]`              | Show scanned package.json files as a tree (name, lock, dep count)          |
 | `depseek undo [id] [--list]`         | Restore the state before the last (or a given) write                       |
 | `depseek doctor [--test <cmd>]`      | Upgrade one by one → install → test, roll back failures, then report       |
@@ -152,6 +153,26 @@ lodash  ℹ hint · dependencies vs devDependencies
 ```
 
 It also reports **unmet peer dependencies** of installed packages, based on `node_modules`. `--fix --align highest|lowest|most-used|latest|<version>` aligns versions; by default it never crosses a major version (each major line is aligned on its own), only with `--allow-major` or after confirming each one in `-i`.
+
+### Unused dependencies
+
+`depseek unused [pkg...]` lists `dependencies`, `devDependencies` and `optionalDependencies` that nothing in the project refers to. Each `package.json` is checked on its own: nested packages (workspace members) are skipped, and peer dependencies are not checked. A dependency counts as used when it is imported (`import`, `export … from`, `import()`, `require`, `vi.mock`, `/// <reference types>`), used in a stylesheet (`@import`, `@use`, `@plugin`), named in `package.json` scripts or other fields, named in tool config (`*.config.*`, `.*rc`, `tsconfig*.json`, `*.toml`, CI workflows under `.github/` etc.), or when one of its installed CLIs is used. Lock files never count. `@types/x` is only reported together with an unused `x`.
+
+```
+package.json  4 unused dependencies
+  Not referenced anywhere
+    @vitejs/plugin-react  6.3.0  devDependencies
+  Only mentioned in comments or docs — check before removing
+    tsx       4.23.15  devDependencies
+    turndown  7.2.5    dependencies
+```
+
+Results are **candidates, not verdicts**: a static scan can't see packages that are loaded by name or injected at runtime. Each candidate is put in one of two tiers:
+
+- **Not referenced anywhere**: the name appears nowhere else in the project. High confidence.
+- **Only mentioned in comments or docs**: the name still appears in a comment, `README.md` / `CLAUDE.md` or another text file. It may just be documentation, or the package may be loaded indirectly (a CLI passed as a string such as `node --import tsx`, an injected driver, a plugin). Check these before removing.
+
+In `-o json` every entry has `mentioned: true | false`; `-o markdown` keeps the two tiers apart. The exit code is 1 whenever there is any candidate, in either tier. List packages you know are fine under `unused.ignore` in the config (names or globs). `unused` only reports; it does not edit `package.json` and does not look for missing dependencies.
 
 ### Filters (shared by check / conflicts / up / format / ls)
 
@@ -253,6 +274,7 @@ Existing `.ncurc*` files (current directory → git root → home) are read auto
     "ignore": ["@types/node"],
     "groups": [{ "name": "legacy", "projects": ["legacy/*"] }],
   },
+  "unused": { "ignore": ["eslint-plugin-*"] },
   "runtime": { "node": "22.12.0" },
   "gitCheck": true,
   "audit": false,

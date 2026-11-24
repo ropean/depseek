@@ -18,7 +18,7 @@ describe('help', () => {
   it('-h fits on one screen and lists every command', async () => {
     const { code, out } = await run('-h');
     expect(code).toBe(0);
-    expect(out.split('\n').length).toBeLessThanOrEqual(16);
+    expect(out.split('\n').length).toBeLessThanOrEqual(17);
     for (const name of Object.keys(COMMAND_HELP).filter((n) => n !== 'check')) expect(out).toContain(`depseek ${name}`);
     expect(out).toContain('depseek -h --full');
     expect(out.split('\n')[1]).toContain('Short command: ds');

@@ -68,6 +68,7 @@ depseek undo                              # 恢复上一次写入
 | `depseek conflicts [pkg...]`         | 列出版本冲突；`--fix` 统一                                 |
 | `depseek format --to <fmt>`          | 只改版本写法，不升级；`--from-lock` 用 lock 里的实际版本   |
 | `depseek ls [pkg...]`                | 某个依赖在哪些项目里、各用什么版本（及实际安装版本）       |
+| `depseek unused [pkg...]`            | 没有被源码、脚本或配置引用的依赖（有则退出码 1）           |
 | `depseek tree [dir...]`              | 以目录树显示扫描到的 package.json（名称、lock、依赖数）    |
 | `depseek undo [id] [--list]`         | 恢复上一次（或指定）写入前的状态                           |
 | `depseek doctor [--test <cmd>]`      | 逐个升级 → install → 跑测试，失败的回退，最后报告          |
@@ -152,6 +153,26 @@ lodash  ℹ hint · dependencies vs devDependencies
 ```
 
 还会根据 `node_modules` 报告已安装包的 **peer 依赖不满足**。`--fix --align highest|lowest|most-used|latest|<version>` 统一版本；默认不跨主版本（每条主版本线各自对齐），`--allow-major` 或 `-i` 逐个确认后才跨。
+
+### 未使用的依赖
+
+`depseek unused [pkg...]` 列出项目里没有任何地方引用的 `dependencies`、`devDependencies`、`optionalDependencies`。每个 `package.json` 单独检查：嵌套的子包（workspace 成员）不算进上层，peer 依赖不检查。下面几种情况都算「在用」：被 import（`import`、`export … from`、`import()`、`require`、`vi.mock`、`/// <reference types>`）、被样式文件引用（`@import`、`@use`、`@plugin`）、出现在 `package.json` 的 scripts 或其他字段里、出现在工具配置里（`*.config.*`、`.*rc`、`tsconfig*.json`、`*.toml`、`.github/` 等 CI 工作流）、或它已安装的 CLI 被用到。锁文件不算引用。`@types/x` 只在对应的 `x` 也未使用时才一起报告。
+
+```
+package.json  4 unused dependencies
+  Not referenced anywhere
+    @vitejs/plugin-react  6.3.0  devDependencies
+  Only mentioned in comments or docs — check before removing
+    tsx       4.23.15  devDependencies
+    turndown  7.2.5    dependencies
+```
+
+结果是**候选，不是结论**：静态扫描看不到按名字加载或运行时注入的包。每个候选分成两档：
+
+- **Not referenced anywhere**（没有任何地方引用）：项目里再没有别处出现这个名字，可信度高。
+- **Only mentioned in comments or docs**（仅在注释或文档里出现）：名字还出现在注释、`README.md` / `CLAUDE.md` 或别的文本文件里。可能只是文档，也可能是间接加载（比如 `node --import tsx` 这种以字符串传入的 CLI、注入式驱动、插件）。删除前先核对。
+
+`-o json` 里每项带 `mentioned: true | false`；`-o markdown` 同样分两档。只要有候选（不论哪一档）退出码就是 1。确认没问题的包可以写进配置的 `unused.ignore`（包名或通配符）。`unused` 只报告，不修改 `package.json`，也不检查缺失的依赖。
 
 ### 过滤（check / conflicts / up / format / ls 通用）
 
@@ -253,6 +274,7 @@ depseek -o json | jq '.summary'
     "ignore": ["@types/node"],
     "groups": [{ "name": "legacy", "projects": ["legacy/*"] }],
   },
+  "unused": { "ignore": ["eslint-plugin-*"] },
   "runtime": { "node": "22.12.0" },
   "gitCheck": true,
   "audit": false,

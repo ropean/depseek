@@ -201,26 +201,26 @@ Nov 13, 2026 · @Wei Guo
 
 下面是你没有提到、但在多项目依赖管理中常见且有用的功能，按建议优先级排序。
 
-| 功能                    | 解决什么问题                                                                                                                 | 优先级 |
-| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ------ |
-| **更新后自动 install**  | 改完 package.json 后 lock 文件不同步。`--install always\|prompt\|never`，按每个项目的 lock 文件识别包管理器，并行执行        | P0     |
-| **关联包一起升级**      | `react` 和 `react-dom`、`@types/react` 版本必须配套。内置常见分组，并支持配置 `groups`（如 `@tanstack/*`），组内升到同一版本 | P0     |
-| **撤销（undo）**        | 更新后发现出问题。每次写入前备份所有被改的 package.json，`depseek undo` 一键恢复                                             | P0     |
-| **Dry run / diff 预览** | 想先看看会改什么。`--dry-run` 输出统一 diff                                                                                  | P0     |
-| **版本冷却期**          | 供应链攻击常在发布后几小时内被发现和撤回。`--cooldown 3` 不升到 3 天内发布的版本                                             | P1     |
-| **已废弃提示**          | 用着已 deprecated 的包或版本却不知道。显示废弃信息及推荐替代                                                                 | P1     |
-| **安全漏洞检查**        | 查 OSV / GitHub Advisory，标出当前版本有已知漏洞的依赖，并提示“升到哪个版本可修复”                                           | P1     |
-| **忽略与锁定**          | 某些包故意不升级，或某个版本已知有 bug。配置 `ignore`、`pin`、`ignoreVersions`（如 `vite@6.1.0`），可加备注说明原因          | P1     |
-| **peer 依赖预检**       | 升级 A 后不再满足 B 的 peerDependencies。写入前计算并警告                                                                    | P1     |
-| **changelog 链接**      | 不知道 major 升级改了什么。从 repository 字段生成 GitHub Releases / CHANGELOG 链接；可选拉取 release 标题                    | P1     |
-| **doctor 模式**         | 参考 ncu `--doctor`：逐个升级并运行测试命令，失败就回退该包，最后报告哪些可以安全升级                                        | P2     |
-| **engines 兼容检查**    | 新版本要求更高的 Node / Bun。对照本地或配置里声明的运行时版本，不兼容则警告                                                  | P2     |
-| **@types 版本跟随**     | `@types/node` 等应与实际运行时/主包的主版本一致，而不是无脑升到最新                                                          | P2     |
-| **Git 集成**            | 要求工作区干净才能写入（可关）；`--commit` 按级别或分组自动提交，提交信息列出升级的包                                        | P2     |
-| **报告导出**            | `--output json\|markdown`，markdown 可直接贴到 PR 描述里                                                                     | P2     |
-| **许可证变化提醒**      | 新版本换了 license（如 MIT → BSL）时警告，对商业项目很重要                                                                   | P2     |
-| **未使用依赖检测**      | package.json 里有但代码没 import 的依赖。工作量大，可以以后做或调用 knip                                                     | P3     |
-| **包体积变化**          | 升级后依赖体积变大多少。对前端项目有用，但需要额外数据源                                                                     | P3     |
+| 功能                    | 解决什么问题                                                                                                                    | 优先级 |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| **更新后自动 install**  | 改完 package.json 后 lock 文件不同步。`--install always\|prompt\|never`，按每个项目的 lock 文件识别包管理器，并行执行           | P0     |
+| **关联包一起升级**      | `react` 和 `react-dom`、`@types/react` 版本必须配套。内置常见分组，并支持配置 `groups`（如 `@tanstack/*`），组内升到同一版本    | P0     |
+| **撤销（undo）**        | 更新后发现出问题。每次写入前备份所有被改的 package.json，`depseek undo` 一键恢复                                                | P0     |
+| **Dry run / diff 预览** | 想先看看会改什么。`--dry-run` 输出统一 diff                                                                                     | P0     |
+| **版本冷却期**          | 供应链攻击常在发布后几小时内被发现和撤回。`--cooldown 3` 不升到 3 天内发布的版本                                                | P1     |
+| **已废弃提示**          | 用着已 deprecated 的包或版本却不知道。显示废弃信息及推荐替代                                                                    | P1     |
+| **安全漏洞检查**        | 查 OSV / GitHub Advisory，标出当前版本有已知漏洞的依赖，并提示“升到哪个版本可修复”                                              | P1     |
+| **忽略与锁定**          | 某些包故意不升级，或某个版本已知有 bug。配置 `ignore`、`pin`、`ignoreVersions`（如 `vite@6.1.0`），可加备注说明原因             | P1     |
+| **peer 依赖预检**       | 升级 A 后不再满足 B 的 peerDependencies。写入前计算并警告                                                                       | P1     |
+| **changelog 链接**      | 不知道 major 升级改了什么。从 repository 字段生成 GitHub Releases / CHANGELOG 链接；可选拉取 release 标题                       | P1     |
+| **doctor 模式**         | 参考 ncu `--doctor`：逐个升级并运行测试命令，失败就回退该包，最后报告哪些可以安全升级                                           | P2     |
+| **engines 兼容检查**    | 新版本要求更高的 Node / Bun。对照本地或配置里声明的运行时版本，不兼容则警告                                                     | P2     |
+| **@types 版本跟随**     | `@types/node` 等应与实际运行时/主包的主版本一致，而不是无脑升到最新                                                             | P2     |
+| **Git 集成**            | 要求工作区干净才能写入（可关）；`--commit` 按级别或分组自动提交，提交信息列出升级的包                                           | P2     |
+| **报告导出**            | `--output json\|markdown`，markdown 可直接贴到 PR 描述里                                                                        | P2     |
+| **许可证变化提醒**      | 新版本换了 license（如 MIT → BSL）时警告，对商业项目很重要                                                                      | P2     |
+| **未使用依赖检测**      | package.json 里有但源码、脚本、工具配置都没引用的依赖（`depseek unused`）。静态扫描，插件和扫不到的 CLI 用 `unused.ignore` 排除 | P3     |
+| **包体积变化**          | 升级后依赖体积变大多少。对前端项目有用，但需要额外数据源                                                                        | P3     |
 
 **更新执行流程**（整合上述功能后）
 
@@ -244,6 +244,7 @@ Nov 13, 2026 · @Wei Guo
 | `depseek conflicts`             | 列出版本冲突；`--fix` 统一           |
 | `depseek format --to <fmt>`     | 只改版本写法，不升级                 |
 | `depseek ls [pkg]`              | 某个依赖在哪些项目里、各用什么版本   |
+| `depseek unused [pkg]`          | 代码、脚本、配置都没用到的依赖       |
 | `depseek tree [dir...]`         | 按树形结构列出 package.json 所在位置 |
 | `depseek doctor [--test <cmd>]` | 逐个升级并跑测试，失败回退           |
 | `depseek undo`                  | 恢复上一次写入前的状态               |
@@ -306,4 +307,5 @@ depseek tree ~/projects               # 树形列出所有 package.json
 | 自动 install、关联包分组、undo、dry-run/diff                                                                                | ✅   |                                                                               |
 | 冷却期、废弃提示、OSV 漏洞检查、忽略与锁定、peer 预检、changelog 链接                                                       | ✅   | changelog 只生成链接，不拉取 release 标题                                     |
 | doctor、engines 检查、@types 跟随、Git 集成、报告导出、许可证变化提醒                                                       | ✅   |                                                                               |
-| 未使用依赖检测、包体积变化（P3）                                                                                            | ⏳   | 未实现，可配合 knip 等工具                                                    |
+| 未使用依赖检测（P3）                                                                                                        | ✅   | `depseek unused`；只报告（无 `--fix`），不检测缺失依赖                        |
+| 包体积变化（P3）                                                                                                            | ⏳   | 未实现                                                                        |

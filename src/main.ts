@@ -10,6 +10,7 @@ import { formatCommand } from './commands/format.js';
 import { initCommand } from './commands/init.js';
 import { lsCommand } from './commands/ls.js';
 import { undoCommand } from './commands/undo.js';
+import { unusedCommand } from './commands/unused.js';
 import { splitDirsAndPackages, upCommand } from './commands/up.js';
 import { treeCommand } from './commands/tree.js';
 import { createContext, type Ctx } from './context.js';
@@ -112,7 +113,7 @@ const OPTIONS: Record<string, OptSpec> = {
   ),
 };
 
-const COMMANDS = ['check', 'up', 'conflicts', 'format', 'ls', 'tree', 'undo', 'doctor', 'init'] as const;
+const COMMANDS = ['check', 'up', 'conflicts', 'format', 'ls', 'unused', 'tree', 'undo', 'doctor', 'init'] as const;
 
 /** Alternative names for commands. */
 const COMMAND_ALIASES: Record<string, (typeof COMMANDS)[number]> = { list: 'ls' };
@@ -146,7 +147,8 @@ export async function main(argv: string[]): Promise<number> {
       process.stderr.write(`depseek: unknown command "${arg}"\nRun "depseek --help" for usage.\n`);
       return 2;
     }
-    const topic = opts.full || opts.all || arg === 'full' || arg === 'all' ? 'all' : arg && isHelpTopic(arg) ? arg : undefined;
+    const topic =
+      opts.full || opts.all || arg === 'full' || arg === 'all' ? 'all' : arg && isHelpTopic(arg) ? arg : undefined;
     process.stdout.write(renderHelp(pkg.version, topic));
     return 0;
   }
@@ -173,7 +175,10 @@ export async function main(argv: string[]): Promise<number> {
   // Not a command, not a directory: probably a typo (it is still used as a package filter).
   const first = positionals[0];
   if (command === 'check' && first && !existsSync(resolve(cwd, first))) {
-    const near = suggest(first, COMMANDS.filter((c) => c !== 'check'));
+    const near = suggest(
+      first,
+      COMMANDS.filter((c) => c !== 'check'),
+    );
     if (near) notes.push(`unknown command "${first}", did you mean "${near}"? (used as a package filter)`);
   }
 
@@ -211,6 +216,8 @@ export async function main(argv: string[]): Promise<number> {
       return formatCommand(ctx, roots);
     case 'ls':
       return lsCommand(ctx, roots);
+    case 'unused':
+      return unusedCommand(ctx, roots);
     case 'undo':
       return undoCommand(ctx, roots);
     case 'doctor':

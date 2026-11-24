@@ -141,7 +141,7 @@ const SECTIONS: Record<SectionName, Section> = {
 
 type CommandHelp = { usage: string; summary: string; sections: SectionName[] };
 
-export type HelpTopic = 'check' | 'up' | 'conflicts' | 'format' | 'ls' | 'tree' | 'undo' | 'doctor' | 'init';
+export type HelpTopic = 'check' | 'up' | 'conflicts' | 'format' | 'ls' | 'unused' | 'tree' | 'undo' | 'doctor' | 'init';
 
 export const COMMAND_HELP: Record<HelpTopic, CommandHelp> = {
   check: {
@@ -167,6 +167,11 @@ export const COMMAND_HELP: Record<HelpTopic, CommandHelp> = {
   ls: {
     usage: 'depseek ls [pkg...]',
     summary: 'which projects use a dependency, with which version (alias: list)',
+    sections: ['scanning', 'output'],
+  },
+  unused: {
+    usage: 'depseek unused [pkg...]',
+    summary: 'dependencies no source file, script or config refers to (exit 1 if any)',
     sections: ['scanning', 'output'],
   },
   tree: {
@@ -233,7 +238,7 @@ export function renderHelp(version: string, topic?: HelpTopic | 'all'): string {
     body = [
       ...usage(),
       '',
-      'Run `depseek <command> -h` for one command\'s options, `depseek -h --full` for every option.',
+      "Run `depseek <command> -h` for one command's options, `depseek -h --full` for every option.",
     ];
   }
   return `${[head, alias, '', ...body].join('\n')}\n`;

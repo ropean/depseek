@@ -32,7 +32,12 @@ export async function checkCommand(ctx: Ctx, roots: string[]): Promise<number> {
     const unmatched = ctx.packageArgs.filter((p) => !names.some(nameMatcher([p])!));
     if (unmatched.length) {
       const list = unmatched.map((p) => `"${p}"`).join(', ');
-      ctx.err(ctx.painter.paint('error', `✖ ${list}: not a command and matches no dependency. Run \`depseek -h\` for commands.`));
+      ctx.err(
+        ctx.painter.paint(
+          'error',
+          `✖ ${list}: not a command and matches no dependency. Run \`depseek -h\` for commands.`,
+        ),
+      );
       return 1;
     }
   }

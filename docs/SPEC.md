@@ -201,26 +201,26 @@ All commands (check / conflicts / up) share the same filter flags.
 
 Features that were not requested but are common and useful when managing dependencies across projects, in suggested priority order.
 
-| Feature                         | Problem it solves                                                                                                                                                    | Priority |
-| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
-| **Install after updating**      | Lock files fall out of sync after package.json changes. `--install always\|prompt\|never`; detect the package manager from each project's lock file, run in parallel | P0       |
-| **Related packages together**   | `react`, `react-dom` and `@types/react` must match. Built-in common groups plus a `groups` config (e.g. `@tanstack/*`); a group moves to the same version            | P0       |
-| **Undo**                        | An update turns out to break things. Back up every changed package.json before writing; `depseek undo` restores in one step                                          | P0       |
-| **Dry run / diff preview**      | See what would change first. `--dry-run` prints a unified diff                                                                                                       | P0       |
-| **Version cooldown**            | Supply-chain attacks are often discovered and yanked within hours of release. `--cooldown 3` skips versions published in the last 3 days                             | P1       |
-| **Deprecation notices**         | A deprecated package or version is in use without anyone knowing. Show the deprecation message and recommended replacement                                           | P1       |
-| **Vulnerability checks**        | Query OSV / GitHub Advisory, flag dependencies whose current version has known vulnerabilities, and suggest "upgrade to X to fix"                                    | P1       |
-| **Ignore and pin**              | Some packages are deliberately held back, or a version is known to be buggy. Config `ignore`, `pin`, `ignoreVersions` (e.g. `vite@6.1.0`), with a note on the reason | P1       |
-| **Peer dependency pre-check**   | Upgrading A breaks B's peerDependencies. Compute and warn before writing                                                                                             | P1       |
-| **Changelog links**             | What did a major upgrade change? Generate GitHub Releases / CHANGELOG links from the repository field; optionally fetch release titles                               | P1       |
-| **Doctor mode**                 | Following ncu `--doctor`: upgrade one by one and run the test command, roll back a package on failure, and report which can be upgraded safely                       | P2       |
-| **engines compatibility**       | A new version requires a newer Node / Bun. Compare against the local or configured runtime version and warn if incompatible                                          | P2       |
-| **@types follow their package** | `@types/node` and similar should match the major of the actual runtime / main package instead of blindly going to latest                                             | P2       |
-| **Git integration**             | Require a clean working tree before writing (can be turned off); `--commit` commits per level or group, with the upgraded packages in the message                    | P2       |
-| **Report export**               | `--output json\|markdown`; markdown can be pasted straight into a PR description                                                                                     | P2       |
-| **License change warnings**     | Warn when a new version changes license (e.g. MIT → BSL); important for commercial projects                                                                          | P2       |
-| **Unused dependency detection** | Dependencies in package.json that the code never imports. A lot of work; can come later or delegate to knip                                                          | P3       |
-| **Package size changes**        | How much bigger a dependency gets after upgrading. Useful for front-end projects but needs an extra data source                                                      | P3       |
+| Feature                         | Problem it solves                                                                                                                                                           | Priority |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| **Install after updating**      | Lock files fall out of sync after package.json changes. `--install always\|prompt\|never`; detect the package manager from each project's lock file, run in parallel        | P0       |
+| **Related packages together**   | `react`, `react-dom` and `@types/react` must match. Built-in common groups plus a `groups` config (e.g. `@tanstack/*`); a group moves to the same version                   | P0       |
+| **Undo**                        | An update turns out to break things. Back up every changed package.json before writing; `depseek undo` restores in one step                                                 | P0       |
+| **Dry run / diff preview**      | See what would change first. `--dry-run` prints a unified diff                                                                                                              | P0       |
+| **Version cooldown**            | Supply-chain attacks are often discovered and yanked within hours of release. `--cooldown 3` skips versions published in the last 3 days                                    | P1       |
+| **Deprecation notices**         | A deprecated package or version is in use without anyone knowing. Show the deprecation message and recommended replacement                                                  | P1       |
+| **Vulnerability checks**        | Query OSV / GitHub Advisory, flag dependencies whose current version has known vulnerabilities, and suggest "upgrade to X to fix"                                           | P1       |
+| **Ignore and pin**              | Some packages are deliberately held back, or a version is known to be buggy. Config `ignore`, `pin`, `ignoreVersions` (e.g. `vite@6.1.0`), with a note on the reason        | P1       |
+| **Peer dependency pre-check**   | Upgrading A breaks B's peerDependencies. Compute and warn before writing                                                                                                    | P1       |
+| **Changelog links**             | What did a major upgrade change? Generate GitHub Releases / CHANGELOG links from the repository field; optionally fetch release titles                                      | P1       |
+| **Doctor mode**                 | Following ncu `--doctor`: upgrade one by one and run the test command, roll back a package on failure, and report which can be upgraded safely                              | P2       |
+| **engines compatibility**       | A new version requires a newer Node / Bun. Compare against the local or configured runtime version and warn if incompatible                                                 | P2       |
+| **@types follow their package** | `@types/node` and similar should match the major of the actual runtime / main package instead of blindly going to latest                                                    | P2       |
+| **Git integration**             | Require a clean working tree before writing (can be turned off); `--commit` commits per level or group, with the upgraded packages in the message                           | P2       |
+| **Report export**               | `--output json\|markdown`; markdown can be pasted straight into a PR description                                                                                            | P2       |
+| **License change warnings**     | Warn when a new version changes license (e.g. MIT → BSL); important for commercial projects                                                                                 | P2       |
+| **Unused dependency detection** | Dependencies in package.json that no source file, script or tool config refers to (`depseek unused`). Static scan, so use `unused.ignore` for plugins and CLIs it can't see | P3       |
+| **Package size changes**        | How much bigger a dependency gets after upgrading. Useful for front-end projects but needs an extra data source                                                             | P3       |
 
 **Update flow** (with the features above combined)
 
@@ -244,6 +244,7 @@ Keep subcommands few and clear; without a subcommand it behaves as `check`, matc
 | `depseek conflicts`             | List version conflicts; `--fix` aligns them             |
 | `depseek format --to <fmt>`     | Change the version style only, no upgrade               |
 | `depseek ls [pkg]`              | Which projects use a dependency and at which version    |
+| `depseek unused [pkg]`          | Dependencies the code, scripts and configs never use    |
 | `depseek tree [dir...]`         | List where each package.json lives, as a tree           |
 | `depseek doctor [--test <cmd>]` | Upgrade one by one and run tests, rolling back failures |
 | `depseek undo`                  | Restore the state before the last write                 |
@@ -306,4 +307,5 @@ Implementation status as of v0.0.1.
 | Auto install, related-package groups, undo, dry-run/diff                                                                                                              | ✅     |                                                                                                           |
 | Cooldown, deprecation notices, OSV vulnerability checks, ignore and pin, peer pre-check, changelog links                                                              | ✅     | Changelog only generates links, release titles are not fetched                                            |
 | Doctor, engines checks, @types following, git integration, report export, license change warnings                                                                     | ✅     |                                                                                                           |
-| Unused dependency detection, package size changes (P3)                                                                                                                | ⏳     | Not implemented; use tools such as knip alongside                                                         |
+| Unused dependency detection (P3)                                                                                                                                      | ✅     | `depseek unused`; reports only (no `--fix`), does not detect missing dependencies                         |
+| Package size changes (P3)                                                                                                                                             | ⏳     | Not implemented                                                                                           |

@@ -68,6 +68,10 @@ export interface Config {
     groups?: ConflictProjectGroup[];
     align?: string;
   };
+  unused?: {
+    /** Packages never reported as unused (plugins, loaders, CLIs the static scan can't see). */
+    ignore?: string[];
+  };
   /** Runtime versions used for engines checks and @types/node. */
   runtime?: { node?: string; bun?: string };
   /** Require a clean git status for files being written (default true). */
@@ -170,6 +174,11 @@ export const CONFIG_TEMPLATE = `{
     "groups": [
       // { "name": "legacy", "projects": ["legacy/*"] }
     ]
+  },
+
+  "unused": {
+    // Packages never reported by "depseek unused" (plugins, loaders, CLIs the static scan can't see)
+    "ignore": []
   },
 
   "runtime": {

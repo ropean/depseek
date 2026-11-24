@@ -8,7 +8,7 @@ import {
   type Conflict,
 } from '../conflicts.js';
 import type { Ctx } from '../context.js';
-import type { DepEntry } from '../project.js';
+import { DEFAULT_DEP_KINDS, type DepEntry } from '../project.js';
 import { confirm } from '../prompt.js';
 import { RegistryError } from '../registry.js';
 import { conflictsToJson, conflictsToMarkdown, renderConflicts } from '../render/conflicts.js';
@@ -114,6 +114,9 @@ export async function conflictsCommand(ctx: Ctx, args: string[]): Promise<number
   const conds = errorOn(ctx);
   const prep = await prepare(ctx, dirs);
   if (!prep) return 1;
+  // Overrides pin versions too, so a mismatch with dependencies is a conflict (unless --dep / config dep says otherwise).
+  if (ctx.opts.dep === undefined && ctx.config.dep === undefined)
+    prep.selection.kinds = new Set([...DEFAULT_DEP_KINDS, 'overrides']);
   const entries = selectEntries(prep.result.projects, prep.selection);
   const cfg = ctx.config.conflicts ?? {};
   let conflicts = findConflicts(entries, { ignore: cfg.ignore, groups: cfg.groups });

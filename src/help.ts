@@ -1,5 +1,5 @@
 // Help text: a one-screen overview (`ds -h`), per-command help (`ds <command> -h`, `ds help <command>`)
-// and the full option reference (`ds -h --all`, `ds help all`).
+// and the full option reference (`ds -h --full`, `ds help full`).
 
 type Section = { title: string; lines: string[] };
 
@@ -195,20 +195,6 @@ export function isHelpTopic(s: string): s is HelpTopic {
   return Object.hasOwn(COMMAND_HELP, s);
 }
 
-const COMMON = [
-  '  -t, --target <t>                    latest | minor | patch | semver | greatest | newest | @<tag>',
-  '  -f, --filter <p> / -x, --reject <p> package names: list, globs (@types/*) or /regex/',
-  '  -c, --cooldown <period>             ignore versions newer than 7 (days), 7d, 12h or 30m',
-  '  --audit                             check current versions against OSV vulnerability data',
-  '  -u, --upgrade                       write changes to package.json',
-  '  -i, --interactive                   pick updates in a full-screen list',
-  '  -n, --dry-run                       only print the diff',
-  '  --format <f>                        exact | tilde | caret | preserve | gte | x-range (default exact)',
-  '  -o, --output <fmt>                  table | json | markdown',
-  '  -y, --yes                           assume yes for prompts',
-  '  -h, --help [--all] / -v, --version',
-];
-
 const pad = (s: string, n: number) => (s.length >= n ? `${s} ` : s.padEnd(n));
 
 function usage(): string[] {
@@ -228,7 +214,7 @@ function section(name: SectionName): string[] {
 
 const CAMEL = "Long options also work in ncu's camelCase (--errorLevel, --jsonUpgraded, --packageManager …).";
 
-/** `topic`: undefined → overview, 'all' → every option, a command name → that command's help. */
+/** `topic`: undefined → overview, 'all' → every option (--full), a command name → that command's help. */
 export function renderHelp(version: string, topic?: HelpTopic | 'all'): string {
   const head = `depseek ${version} — find version conflicts and updates across every package.json`;
   let body: string[];
@@ -246,10 +232,7 @@ export function renderHelp(version: string, topic?: HelpTopic | 'all'): string {
     body = [
       ...usage(),
       '',
-      'Common options',
-      ...COMMON,
-      '',
-      'Run `depseek <command> -h` for the options of one command, `depseek -h --all` for every option.',
+      'Run `depseek <command> -h` for one command\'s options, `depseek -h --full` for every option.',
     ];
   }
   return `${[head, '', ...body].join('\n')}\n`;

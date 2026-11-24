@@ -18,9 +18,10 @@ describe('help', () => {
   it('-h fits on one screen and lists every command', async () => {
     const { code, out } = await run('-h');
     expect(code).toBe(0);
-    expect(out.split('\n').length).toBeLessThanOrEqual(32);
+    expect(out.split('\n').length).toBeLessThanOrEqual(16);
     for (const name of Object.keys(COMMAND_HELP).filter((n) => n !== 'check')) expect(out).toContain(`depseek ${name}`);
-    expect(out).toContain('depseek -h --all');
+    expect(out).toContain('depseek -h --full');
+    expect(out).not.toContain('--target');
     expect(out).not.toContain('--allow-major');
   });
 
@@ -28,8 +29,10 @@ describe('help', () => {
     expect((await run('help')).out).toBe((await run('-h')).out);
   });
 
-  it('-h --all and `help all` print every option', async () => {
-    const all = (await run('-h', '--all')).out;
+  it('-h --full, `help full` and the --all alias print every option', async () => {
+    const all = (await run('-h', '--full')).out;
+    expect((await run('help', 'full')).out).toBe(all);
+    expect((await run('-h', '--all')).out).toBe(all);
     expect((await run('help', 'all')).out).toBe(all);
     for (const o of ['--allow-major', '--from-lock', '--doctor-install', '--follow-symlinks', '--json-upgraded'])
       expect(all).toContain(o);

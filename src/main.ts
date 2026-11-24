@@ -101,7 +101,8 @@ const OPTIONS: Record<string, OptSpec> = {
   yes: { type: 'boolean', short: 'y' },
   force: { type: 'boolean' },
   help: { type: 'boolean', short: 'h' },
-  all: { type: 'boolean' },
+  full: { type: 'boolean' },
+  all: { type: 'boolean' }, // alias of --full
   version: { type: 'boolean', short: 'v' },
   // ncu options that are recognised but not implemented (clear error instead of "unknown option")
   ...Object.fromEntries(
@@ -127,15 +128,15 @@ export async function main(argv: string[]): Promise<number> {
     process.stdout.write(`${pkg.version}\n`);
     return 0;
   }
-  // `ds -h`, `ds -h --all`, `ds <command> -h`, `ds help [command|all]`
+  // `ds -h`, `ds -h --full`, `ds <command> -h`, `ds help [command|full]`
   const helpCmd = positionals[0] === 'help';
   if (opts.help || helpCmd) {
     const arg = positionals[helpCmd ? 1 : 0];
-    if (helpCmd && arg && arg !== 'all' && !isHelpTopic(arg)) {
+    if (helpCmd && arg && arg !== 'all' && arg !== 'full' && !isHelpTopic(arg)) {
       process.stderr.write(`depseek: unknown command "${arg}"\nRun "depseek --help" for usage.\n`);
       return 2;
     }
-    const topic = opts.all || arg === 'all' ? 'all' : arg && isHelpTopic(arg) ? arg : undefined;
+    const topic = opts.full || opts.all || arg === 'full' || arg === 'all' ? 'all' : arg && isHelpTopic(arg) ? arg : undefined;
     process.stdout.write(renderHelp(pkg.version, topic));
     return 0;
   }

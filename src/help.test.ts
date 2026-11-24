@@ -21,6 +21,7 @@ describe('help', () => {
     expect(out.split('\n').length).toBeLessThanOrEqual(16);
     for (const name of Object.keys(COMMAND_HELP).filter((n) => n !== 'check')) expect(out).toContain(`depseek ${name}`);
     expect(out).toContain('depseek -h --full');
+    expect(out.split('\n')[1]).toContain('Short command: ds');
     expect(out).not.toContain('--target');
     expect(out).not.toContain('--allow-major');
   });

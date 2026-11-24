@@ -199,7 +199,7 @@ const pad = (s: string, n: number) => (s.length >= n ? `${s} ` : s.padEnd(n));
 
 function usage(): string[] {
   return [
-    'Usage (ds is a short alias of depseek)',
+    'Usage',
     ...Object.entries(COMMAND_HELP).map(([name, c]) => {
       const u = name === 'check' ? 'depseek [dir...] [pkg...] [options]' : c.usage;
       return `  ${pad(u, 36)}${c.summary}`;
@@ -217,6 +217,7 @@ const CAMEL = "Long options also work in ncu's camelCase (--errorLevel, --jsonUp
 /** `topic`: undefined → overview, 'all' → every option (--full), a command name → that command's help. */
 export function renderHelp(version: string, topic?: HelpTopic | 'all'): string {
   const head = `depseek ${version} — find version conflicts and updates across every package.json`;
+  const alias = 'Short command: ds is a short alias of depseek';
   let body: string[];
   if (topic === 'all') {
     body = [
@@ -235,5 +236,5 @@ export function renderHelp(version: string, topic?: HelpTopic | 'all'): string {
       'Run `depseek <command> -h` for one command\'s options, `depseek -h --full` for every option.',
     ];
   }
-  return `${[head, '', ...body].join('\n')}\n`;
+  return `${[head, alias, '', ...body].join('\n')}\n`;
 }

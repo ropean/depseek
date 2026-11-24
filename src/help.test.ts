@@ -58,4 +58,20 @@ describe('help', () => {
     expect(code).toBe(2);
     expect(err).toContain('unknown command "nope"');
   });
+
+  it('`list` is an alias of `ls`', async () => {
+    expect((await run('list', '-h')).out).toBe((await run('ls', '-h')).out);
+    expect((await run('help', 'list')).out).toBe((await run('help', 'ls')).out);
+  });
+});
+
+describe('unknown command hint', () => {
+  it('suggests the closest command for a typo', async () => {
+    const { suggest } = await import('./util/suggest.js');
+    const cmds = ['up', 'conflicts', 'format', 'ls', 'tree', 'undo', 'doctor', 'init'];
+    expect(suggest('confilcts', cmds)).toBe('conflicts');
+    expect(suggest('lss', cmds)).toBe('ls');
+    expect(suggest('react', cmds)).toBeUndefined();
+    expect(suggest('hono', cmds)).toBeUndefined();
+  });
 });

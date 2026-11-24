@@ -1,4 +1,5 @@
 import pkg from '../package.json' with { type: 'json' };
+import { existsSync } from 'node:fs';
 import { relative, resolve } from 'node:path';
 import { ArgError, list, parseArgv, type OptSpec } from './args.js';
 import { checkCommand } from './commands/check.js';
@@ -13,6 +14,7 @@ import { splitDirsAndPackages, upCommand } from './commands/up.js';
 import { treeCommand } from './commands/tree.js';
 import { createContext, type Ctx } from './context.js';
 import { isHelpTopic, renderHelp } from './help.js';
+import { suggest } from './util/suggest.js';
 import { applyNcurc, findNcurc, NCU_UNSUPPORTED, normalizeNcuOptions, readNcurc } from './ncu.js';
 
 const OPTIONS: Record<string, OptSpec> = {
@@ -112,6 +114,9 @@ const OPTIONS: Record<string, OptSpec> = {
 
 const COMMANDS = ['check', 'up', 'conflicts', 'format', 'ls', 'tree', 'undo', 'doctor', 'init'] as const;
 
+/** Alternative names for commands. */
+const COMMAND_ALIASES: Record<string, (typeof COMMANDS)[number]> = { list: 'ls' };
+
 export async function main(argv: string[]): Promise<number> {
   let parsed;
   try {
@@ -127,6 +132,11 @@ export async function main(argv: string[]): Promise<number> {
   if (opts.version) {
     process.stdout.write(`${pkg.version}\n`);
     return 0;
+  }
+  // `ds list` = `ds ls`, also in `ds help list`
+  for (const i of positionals[0] === 'help' ? [1] : [0]) {
+    const alias = positionals[i] && Object.hasOwn(COMMAND_ALIASES, positionals[i]!) && COMMAND_ALIASES[positionals[i]!];
+    if (alias) positionals[i] = alias;
   }
   // `ds -h`, `ds -h --full`, `ds <command> -h`, `ds help [command|full]`
   const helpCmd = positionals[0] === 'help';
@@ -159,6 +169,13 @@ export async function main(argv: string[]): Promise<number> {
 
   let command = ncu.command ?? 'check';
   if (positionals.length && (COMMANDS as readonly string[]).includes(positionals[0]!)) command = positionals.shift()!;
+
+  // Not a command, not a directory: probably a typo (it is still used as a package filter).
+  const first = positionals[0];
+  if (command === 'check' && first && !existsSync(resolve(cwd, first))) {
+    const near = suggest(first, COMMANDS.filter((c) => c !== 'check'));
+    if (near) notes.push(`unknown command "${first}", did you mean "${near}"? (used as a package filter)`);
+  }
 
   // ncu style: `depseek react "/^@types/"` filters by package name; directories are scan roots.
   let roots = positionals;

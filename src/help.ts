@@ -166,7 +166,7 @@ export const COMMAND_HELP: Record<HelpTopic, CommandHelp> = {
   },
   ls: {
     usage: 'depseek ls [pkg...]',
-    summary: 'which projects use a dependency, with which version',
+    summary: 'which projects use a dependency, with which version (alias: list)',
     sections: ['scanning', 'output'],
   },
   tree: {

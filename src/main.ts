@@ -179,15 +179,18 @@ export async function main(argv: string[]): Promise<number> {
 
   // ncu style: `depseek react "/^@types/"` filters by package name; directories are scan roots.
   let roots = positionals;
+  let packageArgs: string[] = [];
   if (command === 'check' || command === 'doctor') {
     const { dirs, packages } = splitDirsAndPackages(cwd, positionals);
     const pinned = packages.filter((p) => !/^\/.*\/$/.test(p) && p.indexOf('@', p.startsWith('@') ? 1 : 0) > 0);
     if (pinned.length) throw new Error(`To pin versions use \`depseek up ${pinned.join(' ')}\``);
     if (packages.length) opts.filter = [...(list(opts.filter) ?? []), ...packages];
     roots = dirs;
+    packageArgs = packages;
   }
 
   const ctx: Ctx = createContext(command, opts, roots, cwd);
+  if (packageArgs.length) ctx.packageArgs = packageArgs;
   if (opts.silent) {
     ctx.out = () => {};
     ctx.err = () => {};

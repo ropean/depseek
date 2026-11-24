@@ -1,6 +1,7 @@
 import type { Analysis } from '../analyze.js';
 import { findConflicts } from '../conflicts.js';
 import { selectEntries } from '../select.js';
+import { nameMatcher } from '../util/glob.js';
 import type { Ctx } from '../context.js';
 import { renderUpdates, updatesToJson, updatesToMarkdown, updatesToNcuJson, type GroupBy } from '../render/check.js';
 import { analysisFails, errorOn, exactFormatHint, prepare, printSummary, runAnalysis } from './shared.js';
@@ -25,6 +26,16 @@ export async function checkCommand(ctx: Ctx, roots: string[]): Promise<number> {
   const prep = await prepare(ctx, roots);
   if (!prep) return 1;
   printSummary(ctx, prep.result);
+  if (ctx.command === 'check' && ctx.packageArgs?.length) {
+    // `depseek ab`: a package filter that matches nothing is most likely a mistyped command.
+    const names = selectEntries(prep.result.projects, { ...prep.selection, filter: undefined }).map((e) => e.name);
+    const unmatched = ctx.packageArgs.filter((p) => !names.some(nameMatcher([p])!));
+    if (unmatched.length) {
+      const list = unmatched.map((p) => `"${p}"`).join(', ');
+      ctx.err(ctx.painter.paint('error', `✖ ${list}: not a command and matches no dependency. Run \`depseek -h\` for commands.`));
+      return 1;
+    }
+  }
   const a = await runAnalysis(ctx, prep);
   printAnalysis(ctx, a);
   if (ctx.opts.output !== 'json' && ctx.opts.output !== 'markdown' && a.updates.length && !ctx.opts.upgrade) {

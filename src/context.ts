@@ -11,6 +11,8 @@ export interface Ctx {
   command: string;
   opts: OptValues;
   positionals: string[];
+  /** Package names/globs given on the command line (`depseek react`); must each match a dependency. */
+  packageArgs?: string[];
   config: Config;
   configFile?: string;
   painter: Painter;
